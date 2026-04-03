@@ -1,0 +1,20 @@
+{
+  "id": "cmpl-test",
+  "model": "meta-llama/Llama-2-7b",
+  "choices": [
+    {
+      "index": 0,
+      "text": "The answer is 42",
+      "logprobs": {
+        "tokens": ["The", " answer", " is", " 42"],
+        "token_logprobs": [-0.3, -1.1, -0.2, -3.5],
+        "top_logprobs": [
+          {"The": -0.3, "A": -1.5, "It": -2.8},
+          {" answer": -1.1, " result": -1.8, " solution": -2.5},
+          {" is": -0.2, " was": -2.0, " equals": -3.1},
+          {" 42": -3.5, " unknown": -3.8, " zero": -4.2}
+        ]
+      }
+    }
+  ]
+}

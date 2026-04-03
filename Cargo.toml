@@ -1,0 +1,19 @@
+[package]
+name = "logprobe"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Detect normalization errors, entropy bias, and truncation artifacts in LLM logprob data"
+license = "MIT"
+repository = "https://github.com/Robby955/logprobe"
+homepage = "https://github.com/Robby955/logprobe"
+readme = "README.md"
+keywords = ["llm", "logprobs", "entropy", "perplexity", "diagnostics"]
+categories = ["command-line-utilities", "science"]
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+crossterm = "0.28"
