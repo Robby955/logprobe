@@ -99,6 +99,22 @@ for f in &findings {
 }
 ```
 
+## Demo
+
+The `demo/` directory contains pre-generated GPT-2 logprob data in all three supported formats — including a deliberately corrupted file with raw logits instead of log-probabilities. No API key needed.
+
+```bash
+# Normal case — truncated top-5 from GPT-2
+logprobe diagnose demo/gpt2_openai.json
+
+# Broken case — raw logits. logprobe catches it immediately.
+logprobe diagnose demo/gpt2_logits_openai.json
+# → Normalization: FAIL (log mass = 12.0840 — likely raw logits)
+# → Validation: 63 error(s) found
+```
+
+There's also a script to generate your own logprob data from GPT-2 locally. See [demo/README.md](demo/README.md) for details.
+
 ## License
 
 MIT

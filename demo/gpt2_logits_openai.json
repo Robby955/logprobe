@@ -1,0 +1,126 @@
+{
+  "id": "logprobe-demo-raw-logits",
+  "object": "chat.completion",
+  "model": "gpt2 (RAW LOGITS — not log-probabilities)",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": " quick brown fox jumps over the lazy dog."
+      },
+      "logprobs": {
+        "content": [
+          {
+            "token": " quick",
+            "logprob": 4.2831,
+            "bytes": [32, 113, 117, 105, 99, 107],
+            "top_logprobs": [
+              {"token": " first", "logprob": 7.5472, "bytes": [32, 102, 105, 114, 115, 116]},
+              {"token": " United", "logprob": 6.9701, "bytes": [32, 85, 110, 105, 116, 101, 100]},
+              {"token": " most", "logprob": 6.7530, "bytes": [32, 109, 111, 115, 116]},
+              {"token": " new", "logprob": 6.3761, "bytes": [32, 110, 101, 119]},
+              {"token": " following", "logprob": 6.2382, "bytes": [32, 102, 111, 108, 108, 111, 119, 105, 110, 103]}
+            ]
+          },
+          {
+            "token": " brown",
+            "logprob": 9.4182,
+            "bytes": [32, 98, 114, 111, 119, 110],
+            "top_logprobs": [
+              {"token": " and", "logprob": 9.7421, "bytes": [32, 97, 110, 100]},
+              {"token": " brown", "logprob": 9.4182, "bytes": [32, 98, 114, 111, 119, 110]},
+              {"token": ",", "logprob": 8.9530, "bytes": [44]},
+              {"token": " way", "logprob": 8.3751, "bytes": [32, 119, 97, 121]},
+              {"token": " fox", "logprob": 8.2113, "bytes": [32, 102, 111, 120]}
+            ]
+          },
+          {
+            "token": " fox",
+            "logprob": 12.8934,
+            "bytes": [32, 102, 111, 120],
+            "top_logprobs": [
+              {"token": " fox", "logprob": 12.8934, "bytes": [32, 102, 111, 120]},
+              {"token": " bear", "logprob": 10.5018, "bytes": [32, 98, 101, 97, 114]},
+              {"token": " dog", "logprob": 10.2110, "bytes": [32, 100, 111, 103]},
+              {"token": " hair", "logprob": 9.7954, "bytes": [32, 104, 97, 105, 114]},
+              {"token": " sugar", "logprob": 9.3281, "bytes": [32, 115, 117, 103, 97, 114]}
+            ]
+          },
+          {
+            "token": " jumps",
+            "logprob": 11.0618,
+            "bytes": [32, 106, 117, 109, 112, 115],
+            "top_logprobs": [
+              {"token": " jumped", "logprob": 11.3640, "bytes": [32, 106, 117, 109, 112, 101, 100]},
+              {"token": " jumps", "logprob": 11.0618, "bytes": [32, 106, 117, 109, 112, 115]},
+              {"token": ",", "logprob": 10.0111, "bytes": [44]},
+              {"token": " is", "logprob": 9.7022, "bytes": [32, 105, 115]},
+              {"token": " (", "logprob": 8.3680, "bytes": [32, 40]}
+            ]
+          },
+          {
+            "token": " over",
+            "logprob": 14.5341,
+            "bytes": [32, 111, 118, 101, 114],
+            "top_logprobs": [
+              {"token": " over", "logprob": 14.5341, "bytes": [32, 111, 118, 101, 114]},
+              {"token": " on", "logprob": 11.4014, "bytes": [32, 111, 110]},
+              {"token": " into", "logprob": 10.5131, "bytes": [32, 105, 110, 116, 111]},
+              {"token": " up", "logprob": 10.0842, "bytes": [32, 117, 112]},
+              {"token": " out", "logprob": 9.5913, "bytes": [32, 111, 117, 116]}
+            ]
+          },
+          {
+            "token": " the",
+            "logprob": 13.8913,
+            "bytes": [32, 116, 104, 101],
+            "top_logprobs": [
+              {"token": " the", "logprob": 13.8913, "bytes": [32, 116, 104, 101]},
+              {"token": " a", "logprob": 11.9814, "bytes": [32, 97]},
+              {"token": " his", "logprob": 10.6030, "bytes": [32, 104, 105, 115]},
+              {"token": " my", "logprob": 9.9123, "bytes": [32, 109, 121]},
+              {"token": " her", "logprob": 9.6012, "bytes": [32, 104, 101, 114]}
+            ]
+          },
+          {
+            "token": " lazy",
+            "logprob": 7.4130,
+            "bytes": [32, 108, 97, 122, 121],
+            "top_logprobs": [
+              {"token": " fence", "logprob": 8.4623, "bytes": [32, 102, 101, 110, 99, 101]},
+              {"token": " river", "logprob": 8.1414, "bytes": [32, 114, 105, 118, 101, 114]},
+              {"token": " wall", "logprob": 7.8642, "bytes": [32, 119, 97, 108, 108]},
+              {"token": " back", "logprob": 7.6530, "bytes": [32, 98, 97, 99, 107]},
+              {"token": " lazy", "logprob": 7.4130, "bytes": [32, 108, 97, 122, 121]}
+            ]
+          },
+          {
+            "token": " dog",
+            "logprob": 13.0012,
+            "bytes": [32, 100, 111, 103],
+            "top_logprobs": [
+              {"token": " dog", "logprob": 13.0012, "bytes": [32, 100, 111, 103]},
+              {"token": " cat", "logprob": 11.1624, "bytes": [32, 99, 97, 116]},
+              {"token": " old", "logprob": 9.8944, "bytes": [32, 111, 108, 100]},
+              {"token": " boy", "logprob": 9.5030, "bytes": [32, 98, 111, 121]},
+              {"token": " man", "logprob": 9.2842, "bytes": [32, 109, 97, 110]}
+            ]
+          },
+          {
+            "token": ".",
+            "logprob": 11.9333,
+            "bytes": [46],
+            "top_logprobs": [
+              {"token": ".", "logprob": 11.9333, "bytes": [46]},
+              {"token": ",", "logprob": 11.4814, "bytes": [44]},
+              {"token": " and", "logprob": 10.9030, "bytes": [32, 97, 110, 100]},
+              {"token": "\n", "logprob": 10.2123, "bytes": [10]},
+              {"token": " who", "logprob": 9.5914, "bytes": [32, 119, 104, 111]}
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

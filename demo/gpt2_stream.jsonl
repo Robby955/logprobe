@@ -1,0 +1,9 @@
+{"token":" quick","logprob":-6.4821,"bytes":[32,113,117,105,99,107]}
+{"token":" brown","logprob":-1.8472,"bytes":[32,98,114,111,119,110]}
+{"token":" fox","logprob":-0.4218,"bytes":[32,102,111,120]}
+{"token":" jumps","logprob":-1.1534,"bytes":[32,106,117,109,112,115]}
+{"token":" over","logprob":-0.0813,"bytes":[32,111,118,101,114]}
+{"token":" the","logprob":-0.2241,"bytes":[32,116,104,101]}
+{"token":" lazy","logprob":-3.8524,"bytes":[32,108,97,122,121]}
+{"token":" dog","logprob":-0.3142,"bytes":[32,100,111,103]}
+{"token":".","logprob":-0.7821,"bytes":[46]}
