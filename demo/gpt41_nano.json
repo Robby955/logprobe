@@ -1,0 +1,109 @@
+{
+  "id": "chatcmpl-DQhRwlOV6vnGqH29Lqf7xiGFYqdoH",
+  "object": "chat.completion",
+  "created": 1775255920,
+  "model": "gpt-4.1-nano-2025-04-14",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "Paris",
+        "refusal": null,
+        "annotations": []
+      },
+      "logprobs": {
+        "content": [
+          {
+            "token": "Paris",
+            "logprob": -3.173704271830502e-06,
+            "bytes": [
+              80,
+              97,
+              114,
+              105,
+              115
+            ],
+            "top_logprobs": [
+              {
+                "token": "Paris",
+                "logprob": -3.173704271830502e-06,
+                "bytes": [
+                  80,
+                  97,
+                  114,
+                  105,
+                  115
+                ]
+              },
+              {
+                "token": " Paris",
+                "logprob": -13.50000286102295,
+                "bytes": [
+                  32,
+                  80,
+                  97,
+                  114,
+                  105,
+                  115
+                ]
+              },
+              {
+                "token": "Berlin",
+                "logprob": -14.87500286102295,
+                "bytes": [
+                  66,
+                  101,
+                  114,
+                  108,
+                  105,
+                  110
+                ]
+              },
+              {
+                "token": " paris",
+                "logprob": -14.87500286102295,
+                "bytes": [
+                  32,
+                  112,
+                  97,
+                  114,
+                  105,
+                  115
+                ]
+              },
+              {
+                "token": "par",
+                "logprob": -15.25000286102295,
+                "bytes": [
+                  112,
+                  97,
+                  114
+                ]
+              }
+            ]
+          }
+        ],
+        "refusal": null
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 19,
+    "completion_tokens": 1,
+    "total_tokens": 20,
+    "prompt_tokens_details": {
+      "cached_tokens": 0,
+      "audio_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 0,
+      "audio_tokens": 0,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    }
+  },
+  "service_tier": "default",
+  "system_fingerprint": "fp_a597f3a3b1"
+}

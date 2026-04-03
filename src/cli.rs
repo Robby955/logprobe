@@ -52,7 +52,7 @@ pub enum Command {
     /// Find low-confidence tokens with surrounding context
     Confidence {
         /// Log-probability threshold (tokens below this are flagged)
-        #[arg(short, long, default_value = "-2.0")]
+        #[arg(short, long, default_value = "-2.0", allow_hyphen_values = true)]
         threshold: f64,
 
         /// Number of context tokens to show before/after

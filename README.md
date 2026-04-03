@@ -4,6 +4,51 @@ Most logprob analysis pipelines silently assume normalized, complete distributio
 
 logprobe detects these problems. It quantifies missing probability mass, catches unnormalized scores, and tells you exactly how much your entropy estimates are off.
 
+## Real results on production API data
+
+Tested on actual GPT-4o-mini and GPT-4.1-nano responses (April 2025). Raw JSON responses are in `demo/`.
+
+**Creative writing** (GPT-4o-mini, temperature=0.7, top_logprobs=20):
+
+```
+$ logprobe diagnose demo/gpt4o_mini_creative.json
+
+Normalization:  pass (log mass = -0.0119)
+Missing mass:   0.0115 (150 positions)
+Entropy bias:   +0.0155 bits (partial: 1.3450, normalized: 1.3605)
+BPB:            byte data available
+
+Validation: all validation checks passed (150 tokens)
+```
+
+Even with top-20, 1.15% of probability mass is missing. The entropy bias is small but measurable.
+
+**GPT-2 with top-5** (the common case — most API calls default to top-5):
+
+```
+$ logprobe diagnose demo/gpt2_openai.json
+
+Normalization:  pass (log mass = -0.5687)
+Missing mass:   0.3001 (2/9 positions >50% missing)
+Entropy bias:   +0.3743 bits (partial: 1.1134, normalized: 1.4876)
+BPB:            byte data available
+
+Validation: all validation checks passed (9 tokens)
+```
+
+30% of probability mass is missing. Two positions have >50% missing mass and are flagged UNRELIABLE.
+
+**Raw logits passed as logprobs** (logprobe catches it immediately):
+
+```
+$ logprobe diagnose demo/gpt2_logits_openai.json
+
+Normalization:  FAIL (log mass = 12.0840 — likely raw logits)
+...
+Validation: 63 error(s) found
+  [ERROR] nonpositive_logprob (position 0): token " quick" has positive logprob 4.2831 ...
+```
+
 ## The problem
 
 OpenAI returns top-5 logprobs for a position:
@@ -19,25 +64,6 @@ token       logprob     probability
 ```
 
 The observed tokens account for 79.7% of the probability mass. The remaining 20.3% is spread across thousands of unseen tokens. Renormalized top-k entropy is a lower bound on the true entropy (assuming correct top-k extraction) — but most tools present it as the actual value. If the API returned raw logits instead of log-probabilities (it happens), every metric silently produces garbage.
-
-## What logprobe does
-
-```
-$ logprobe diagnose response.json
-
-Normalization:  pass (log mass = -0.4285)
-Missing mass:   0.3391 (2 positions)
-Entropy bias:   -0.0966 bits (partial: 0.9504, normalized: 0.8539)
-BPB:            byte data available
-
-Validation: all validation checks passed (2 tokens)
-```
-
-One command. Tells you whether the data is usable, what's wrong, and how much error to expect.
-
-**log mass** = `log(sum(exp(scores)))`. Approximately 0 for complete normalized distributions, negative for truncated top-k log-probabilities (expected), strongly positive for unnormalized logits (broken).
-
-**Entropy bias** = `H_normalized - H_partial`. The sign is informative: positive means the missing tail inflates the entropy estimate, negative means top-k renormalization artificially concentrates mass. Large absolute values indicate significant truncation.
 
 ## Install
 
@@ -101,19 +127,14 @@ for f in &findings {
 
 ## Demo
 
-The `demo/` directory contains pre-generated GPT-2 logprob data in all three supported formats — including a deliberately corrupted file with raw logits instead of log-probabilities. No API key needed.
+The `demo/` directory contains real API responses from GPT-4o-mini, GPT-4.1-nano, and GPT-2 — including a deliberately corrupted file with raw logits. See [demo/README.md](demo/README.md) for the full breakdown.
 
-```bash
-# Normal case — truncated top-5 from GPT-2
-logprobe diagnose demo/gpt2_openai.json
-
-# Broken case — raw logits. logprobe catches it immediately.
-logprobe diagnose demo/gpt2_logits_openai.json
-# → Normalization: FAIL (log mass = 12.0840 — likely raw logits)
-# → Validation: 63 error(s) found
-```
-
-There's also a script to generate your own logprob data from GPT-2 locally. See [demo/README.md](demo/README.md) for details.
+| Model | Task | Missing mass | Entropy bias | Perplexity |
+|-------|------|-------------|-------------|------------|
+| GPT-4o-mini | Creative (top-20, t=0.7) | 1.15% | +0.016 bits | 1.95 |
+| GPT-4o-mini | Code (top-5, t=0) | ~0% | ~0 bits | 1.00 |
+| GPT-4o-mini | Factual (top-5, t=0) | 0.10% | ~0 bits | 1.01 |
+| GPT-2 | Scoring (top-5) | 30.0% | +0.374 bits | 5.39 |
 
 ## License
 

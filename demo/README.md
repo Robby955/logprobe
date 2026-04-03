@@ -1,39 +1,67 @@
 # logprobe demo
 
-Pre-generated logprob data from GPT-2, plus a script to generate your own.
-These files let you see what logprobe does without touching an API.
+Real logprob data from GPT-4o-mini, GPT-4.1-nano, and GPT-2, plus a script to generate your own.
 
-## Quick start (no setup needed)
+## Real API responses
 
-The fixture files are already in this directory. Just run logprobe on them:
+These files are actual OpenAI API responses (April 2025), not synthetic data.
+
+### GPT-4o-mini: creative writing (temperature=0.7, top-20)
 
 ```bash
-# 1. Normal case — truncated top-5 log-probabilities from a real model
-logprobe diagnose demo/gpt2_openai.json
+logprobe diagnose demo/gpt4o_mini_creative.json
 ```
 
-Expected output:
 ```
-Normalization:  pass (log mass = -0.5687)
-Missing mass:   0.3001 (2/9 positions >50% missing)
-Entropy bias:   +0.3743 bits (partial: 1.1134, normalized: 1.4876)
+Normalization:  pass (log mass = -0.0119)
+Missing mass:   0.0115 (150 positions)
+Entropy bias:   +0.0155 bits (partial: 1.3450, normalized: 1.3605)
 BPB:            byte data available
 
-Validation: all validation checks passed (9 tokens)
+Validation: all validation checks passed (150 tokens)
 ```
 
-What this tells you:
-- **Normalization pass** — scores are proper log-probabilities (log mass < 0, as expected for truncated top-k)
-- **Missing mass 0.30** — on average, the top-5 tokens only cover 70% of the probability mass. The other 30% is spread across ~50,000 unseen tokens.
-- **2 positions >50% missing** — at " quick" (position 0) and " lazy" (position 6), the model's distribution was so spread out that the top-5 captured less than half the probability. Entropy estimates at those positions are unreliable.
-- **Entropy bias +0.37 bits** — renormalizing the truncated top-5 to sum to 1 inflates the entropy estimate by about 0.37 bits on average.
+Even with `top_logprobs=20`, 1.15% of probability mass is missing on average. The entropy bias is small (+0.016 bits) because top-20 captures most of the distribution — but it's still measurable and non-zero. At temperature=0.7 with creative content, 37 of 150 tokens fall below -1.0 logprob.
+
+### GPT-4o-mini: code generation (temperature=0, top-5)
 
 ```bash
-# 2. Broken case — raw logits (NOT log-probabilities). logprobe catches it.
+logprobe diagnose demo/gpt4o_mini_code.json
+```
+
+```
+Normalization:  pass (log mass = -0.0000)
+Missing mass:   0.0000 (56 positions)
+Entropy bias:   -0.0000 bits (partial: 0.0083, normalized: 0.0083)
+BPB:            byte data available
+
+Validation: all validation checks passed (56 tokens)
+```
+
+Code generation at temperature=0 is nearly deterministic — top-5 captures effectively 100% of the mass. Perplexity: 1.0016. Missing mass and entropy bias are both negligible.
+
+### GPT-2 vs GPT-4o-mini: the truncation gap
+
+```bash
+logprobe summary demo/gpt2_openai.json
+logprobe summary demo/gpt4o_mini_creative.json
+```
+
+| Metric | GPT-2 (top-5) | GPT-4o-mini (top-20) |
+|--------|---------------|---------------------|
+| Perplexity | 5.39 | 1.95 |
+| Missing mass | 30.0% | 1.15% |
+| BPB | 0.533 | 0.202 |
+| Entropy bias | +0.374 bits | +0.016 bits |
+
+GPT-2's top-5 misses **30% of the probability mass**. Two positions have >50% missing, flagged UNRELIABLE. GPT-4o-mini is far more concentrated, but the bias is still non-zero — and at top-5 (the default for most API calls), it would be higher.
+
+### Catching raw logits
+
+```bash
 logprobe diagnose demo/gpt2_logits_openai.json
 ```
 
-Expected output:
 ```
 Normalization:  FAIL (log mass = 12.0840 — likely raw logits)
 Missing mass:   0.0000 (9 positions)
@@ -46,116 +74,56 @@ Validation: 63 error(s) found
   ...
 ```
 
-What this tells you:
-- **Normalization FAIL** — log mass = 12.08 (should be approximately 0 or slightly negative). The scores are raw logits that were never softmaxed. Any perplexity, entropy, or BPB computed from these is **garbage**.
-- **63 validation errors** — every token has a positive "logprob" (impossible for actual probabilities since log(p) <= 0), and every position has mass exceeding 1.0.
-- This is exactly the kind of silent data corruption that logprobe is designed to catch. Most tools would happily compute perplexity from these numbers and give you a meaningless result.
+Raw logits passed as logprobs. Log mass = 12.08 (should be ~0 or negative). Every token has a positive "logprob", which is impossible for actual probabilities. Most tools would silently compute perplexity from these and give garbage.
 
-```bash
-# 3. vLLM format — same data, different API shape
-logprobe diagnose demo/gpt2_vllm.json
-
-# 4. JSONL stream — minimal format, no top_logprobs
-logprobe diagnose demo/gpt2_stream.jsonl
-```
-
-The JSONL file has no top_logprobs, so logprobe can't check normalization or compute entropy bias — it tells you:
-```
-Normalization:  unknown (no top_logprobs data)
-BPB:            byte data available
-
-Validation: all validation checks passed (9 tokens)
-```
-
-## Other commands on the fixtures
+## Other commands
 
 ```bash
 # Per-token entropy breakdown
-logprobe entropy demo/gpt2_openai.json
+logprobe entropy demo/gpt4o_mini_creative.json
 
-# Find low-confidence tokens with surrounding context
-logprobe confidence demo/gpt2_openai.json --threshold -2.0
+# Find low-confidence tokens with context
+logprobe confidence -t -1.0 demo/gpt4o_mini_creative.json
 
 # Sequence summary (mean logprob, perplexity, missing mass)
-logprobe summary demo/gpt2_openai.json
+logprobe summary demo/gpt4o_mini_natural.json
 
-# BPB — works because byte arrays are included
-logprobe bpb demo/gpt2_openai.json
-
-# BPB — JSONL also has bytes
-logprobe bpb demo/gpt2_stream.jsonl
+# BPB
+logprobe bpb demo/gpt4o_mini_natural.json
 
 # Terminal visualization (color-coded by confidence)
-logprobe highlight demo/gpt2_openai.json
+logprobe highlight demo/gpt4o_mini_creative.json
 
 # JSON output for piping to other tools
-logprobe diagnose demo/gpt2_openai.json --json
+logprobe diagnose demo/gpt4o_mini_creative.json --json
 ```
 
-## Generate your own data
+## GPT-2 fixtures (reproducible, no API key needed)
 
-The `generate_logprobs.py` script runs GPT-2 locally and outputs logprob data in any format logprobe supports.
-
-### Setup
+The `gpt2_*.json` files are generated by running GPT-2 (124M) locally. Anyone can reproduce them:
 
 ```bash
 pip install torch transformers
-```
-
-### Examples
-
-```bash
-# Teacher-forced scoring of fixed text (deterministic, reproducible)
 python demo/generate_logprobs.py \
     --score "The quick brown fox jumps over the lazy dog." \
     --format openai \
     --output my_logprobs.json
-
-# Then analyze with logprobe
 logprobe diagnose my_logprobs.json
-
-# Generate raw logits to see logprobe catch the problem
-python demo/generate_logprobs.py \
-    --score "The quick brown fox jumps over the lazy dog." \
-    --format openai \
-    --raw-logits \
-    --output my_logits.json
-
-logprobe diagnose my_logits.json
-# → Normalization: FAIL (log mass = ... — likely raw logits)
-
-# Autoregressive generation from a prompt
-python demo/generate_logprobs.py \
-    --prompt "Once upon a time" \
-    --max-tokens 30 \
-    --format openai
-
-# vLLM format
-python demo/generate_logprobs.py \
-    --score "Hello world" \
-    --format vllm
-
-# JSONL stream
-python demo/generate_logprobs.py \
-    --score "Hello world" \
-    --format jsonl
-
-# Use GPU if available
-python demo/generate_logprobs.py \
-    --score "The answer to life is" \
-    --device cuda
 ```
 
 ## What's in each file
 
-| File | Format | What it demonstrates |
-|------|--------|---------------------|
-| `gpt2_openai.json` | OpenAI Chat Completions | Normal truncated top-5 logprobs with significant missing mass |
-| `gpt2_logits_openai.json` | OpenAI (corrupted) | Raw logits passed as logprobs — logprobe catches this |
-| `gpt2_vllm.json` | vLLM/Together Completions | Same data in flat token-array format |
-| `gpt2_stream.jsonl` | JSONL | Minimal per-token logprobs, no top-k (BPB-only use case) |
-
-All files score the text *"The quick brown fox jumps over the lazy dog."* using GPT-2 in teacher-forced mode. The values are realistic GPT-2 outputs where token confidence varies naturally — " over" and " the" are nearly certain while " quick" and " lazy" have substantial uncertainty.
+| File | Model | Format | Tokens | What it shows |
+|------|-------|--------|--------|---------------|
+| `gpt4o_mini_natural.json` | GPT-4o-mini | OpenAI | 59 | Factual response, top-5, temp=0 |
+| `gpt4o_mini_creative.json` | GPT-4o-mini | OpenAI | 150 | Creative writing, top-20, temp=0.7 |
+| `gpt4o_mini_code.json` | GPT-4o-mini | OpenAI | 56 | Code generation, top-5, temp=0 |
+| `gpt41_nano.json` | GPT-4.1-nano | OpenAI | 1 | Single-token factual answer |
+| `gpt4o_structured.json` | GPT-4o | OpenAI | 17 | Structured output (empty top_logprobs) |
+| `gpt2_openai.json` | GPT-2 | OpenAI | 9 | High missing mass (30%), 2 UNRELIABLE positions |
+| `gpt2_logits_openai.json` | GPT-2 | OpenAI | 9 | Raw logits — logprobe catches this |
+| `gpt2_vllm.json` | GPT-2 | vLLM | 9 | Same data in flat token-array format |
+| `gpt2_stream.jsonl` | GPT-2 | JSONL | 9 | Minimal per-token, no top-k |
 
 ## Verifying fixture consistency
 
