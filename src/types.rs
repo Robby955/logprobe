@@ -26,9 +26,6 @@ pub struct LogprobSequence {
     pub model: Option<String>,
     pub format_detected: String,
     pub total_logprob: f64,
-    /// None = unknown, Some(true) = confirmed normalized, Some(false) = confirmed unnormalized.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub is_normalized: Option<bool>,
 }
 
 /// Supported input formats.

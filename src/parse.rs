@@ -178,7 +178,6 @@ fn parse_openai(input: &str) -> Result<LogprobSequence> {
         model,
         format_detected: InputFormat::OpenAI.to_string(),
         total_logprob,
-        is_normalized: None,
     })
 }
 
@@ -215,11 +214,11 @@ fn parse_vllm(input: &str) -> Result<LogprobSequence> {
     for (i, (ts, tl)) in token_strs.iter().zip(token_lps.iter()).enumerate() {
         let token = ts
             .as_str()
-            .context(format!("token at index {i} is not a string"))?
+            .with_context(|| format!("token at index {i} is not a string"))?
             .to_string();
         let logprob = tl
             .as_f64()
-            .context(format!("logprob at index {i} is not a number"))?;
+            .with_context(|| format!("logprob at index {i} is not a number"))?;
 
         let top_logprobs = top_lps.and_then(|arr| {
             arr.get(i)
@@ -252,7 +251,6 @@ fn parse_vllm(input: &str) -> Result<LogprobSequence> {
         model,
         format_detected: InputFormat::VllmFlat.to_string(),
         total_logprob,
-        is_normalized: None,
     })
 }
 
@@ -304,7 +302,6 @@ fn parse_jsonl(input: &str) -> Result<LogprobSequence> {
         model: None,
         format_detected: InputFormat::JsonlStream.to_string(),
         total_logprob,
-        is_normalized: None,
     })
 }
 
@@ -341,12 +338,12 @@ fn parse_gemini(input: &str) -> Result<LogprobSequence> {
         let token = entry
             .get("token")
             .and_then(|v| v.as_str())
-            .context(format!("missing token at position {i}"))?
+            .with_context(|| format!("missing token at position {i}"))?
             .to_string();
         let logprob = entry
             .get("logProbability")
             .and_then(|v| v.as_f64())
-            .context(format!("missing logProbability at position {i}"))?;
+            .with_context(|| format!("missing logProbability at position {i}"))?;
 
         // Gemini doesn't provide bytes — derive from token string
         let bytes = Some(token.as_bytes().to_vec());
@@ -391,7 +388,6 @@ fn parse_gemini(input: &str) -> Result<LogprobSequence> {
         model,
         format_detected: InputFormat::Gemini.to_string(),
         total_logprob,
-        is_normalized: None,
     })
 }
 
@@ -416,12 +412,12 @@ fn parse_ollama(input: &str) -> Result<LogprobSequence> {
         let token = item
             .get("token")
             .and_then(|v| v.as_str())
-            .context(format!("missing token at position {i}"))?
+            .with_context(|| format!("missing token at position {i}"))?
             .to_string();
         let logprob = item
             .get("logprob")
             .and_then(|v| v.as_f64())
-            .context(format!("missing logprob at position {i}"))?;
+            .with_context(|| format!("missing logprob at position {i}"))?;
 
         let bytes = item.get("bytes").and_then(|v| v.as_array()).map(|arr| {
             arr.iter()
@@ -459,7 +455,6 @@ fn parse_ollama(input: &str) -> Result<LogprobSequence> {
         model,
         format_detected: InputFormat::Ollama.to_string(),
         total_logprob,
-        is_normalized: None,
     })
 }
 

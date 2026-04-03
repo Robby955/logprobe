@@ -114,19 +114,26 @@ pub fn print_bpb(result: &BpbResult, json: bool) -> Result<()> {
 }
 
 pub fn print_highlight(seq: &LogprobSequence) -> Result<()> {
+    let no_color = std::env::var("NO_COLOR").is_ok();
     let mut stdout = io::stdout();
 
-    for tok in &seq.tokens {
-        let color = logprob_to_color(tok.logprob);
-        stdout.execute(SetForegroundColor(color))?;
-        stdout.execute(Print(&tok.token))?;
+    if no_color {
+        // Plain text fallback: [logprob] token
+        for tok in &seq.tokens {
+            print!("{}", tok.token);
+        }
+        println!();
+    } else {
+        for tok in &seq.tokens {
+            let color = logprob_to_color(tok.logprob);
+            stdout.execute(SetForegroundColor(color))?;
+            stdout.execute(Print(&tok.token))?;
+        }
+        stdout.execute(ResetColor)?;
+        println!();
+        println!();
+        print_legend(&mut stdout)?;
     }
-    stdout.execute(ResetColor)?;
-    println!();
-
-    // Legend
-    println!();
-    print_legend(&mut stdout)?;
 
     Ok(())
 }
@@ -328,7 +335,13 @@ fn print_legend(stdout: &mut impl Write) -> Result<()> {
 fn truncate_token(token: &str, max_len: usize) -> String {
     let display: String = token
         .chars()
-        .map(|c| if c == '\n' { '↵' } else { c })
+        .map(|c| match c {
+            '\n' => '↵',
+            '\r' => '⏎',
+            '\t' => '→',
+            c if c.is_control() => '·',
+            c => c,
+        })
         .collect();
     let char_count = display.chars().count();
     if char_count > max_len {

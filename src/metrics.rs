@@ -16,7 +16,7 @@ pub fn compute_summary(seq: &LogprobSequence) -> SequenceSummary {
         mean_logprob: math::mean_logprob(&logprobs),
         total_logprob: seq.total_logprob,
         perplexity: math::perplexity(&logprobs),
-        assumed_normalized: seq.is_normalized.unwrap_or(false),
+        assumed_normalized: false, // run `diagnose` to verify normalization
         mean_missing_mass,
     }
 }

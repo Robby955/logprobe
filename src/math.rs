@@ -96,8 +96,11 @@ pub fn estimate_log_mass(logprobs: &[f64]) -> f64 {
         return f64::NEG_INFINITY;
     }
     let max_lp = logprobs.iter().cloned().fold(f64::NEG_INFINITY, f64::max);
-    if max_lp.is_infinite() {
-        return 0.0;
+    if max_lp == f64::NEG_INFINITY {
+        return f64::NEG_INFINITY; // all -inf → invalid distribution, not "normalized"
+    }
+    if max_lp == f64::INFINITY {
+        return f64::INFINITY; // +inf logprobs → raw logits or corrupt data
     }
     let sum_exp: f64 = logprobs.iter().map(|lp| (lp - max_lp).exp()).sum();
     max_lp + sum_exp.ln()
