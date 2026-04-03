@@ -414,6 +414,55 @@ fn diagnose_json_roundtrips() {
         serde_json::from_str(&json).expect("should deserialize back");
 }
 
+/// Parse and diagnose a real GPT-4o-mini API response.
+#[test]
+fn real_gpt4o_mini_creative() {
+    let input = include_str!("../demo/gpt4o_mini_creative.json");
+    let seq = parse::parse_string(input, None, false).unwrap();
+    assert_eq!(seq.format_detected, "openai");
+    assert_eq!(seq.tokens.len(), 150);
+    assert_eq!(seq.model.as_deref(), Some("gpt-4o-mini-2024-07-18"));
+
+    let report = diagnostics::diagnose_report(&seq);
+    assert_eq!(report.normalization_status, Severity::Ok);
+    assert!(report.mean_missing_mass > 0.0, "creative writing should have some missing mass");
+    let errors: Vec<_> = report.findings.iter().filter(|f| f.severity == Severity::Error).collect();
+    assert!(errors.is_empty(), "should have no validation errors: {errors:?}");
+}
+
+/// Parse and diagnose a Gemini-format response.
+#[test]
+fn gemini_format_parses() {
+    let input = include_str!("../demo/gemini_sample.json");
+    let seq = parse::parse_string(input, None, false).unwrap();
+    assert_eq!(seq.format_detected, "gemini");
+    assert_eq!(seq.tokens.len(), 12);
+    assert_eq!(seq.model.as_deref(), Some("gemini-2.0-flash"));
+    assert!(seq.tokens[0].top_logprobs.is_some());
+
+    let report = diagnostics::diagnose_report(&seq);
+    assert_eq!(report.normalization_status, Severity::Ok);
+    let errors: Vec<_> = report.findings.iter().filter(|f| f.severity == Severity::Error).collect();
+    assert!(errors.is_empty(), "gemini should have no errors: {errors:?}");
+}
+
+/// Parse and diagnose an Ollama-format response.
+#[test]
+fn ollama_format_parses() {
+    let input = include_str!("../demo/ollama_sample.json");
+    let seq = parse::parse_string(input, None, false).unwrap();
+    assert_eq!(seq.format_detected, "ollama");
+    assert_eq!(seq.tokens.len(), 7);
+    assert_eq!(seq.model.as_deref(), Some("llama3.2:3b"));
+    assert!(seq.tokens[0].bytes.is_some());
+    assert!(seq.tokens[0].top_logprobs.is_some());
+
+    let report = diagnostics::diagnose_report(&seq);
+    assert_eq!(report.normalization_status, Severity::Ok);
+    let errors: Vec<_> = report.findings.iter().filter(|f| f.severity == Severity::Error).collect();
+    assert!(errors.is_empty(), "ollama should have no errors: {errors:?}");
+}
+
 // ─── Test helpers ────────────────────────────────────────────────
 
 /// Build a simple sequence with no top_logprobs (just token logprobs).

@@ -1,0 +1,436 @@
+{
+  "candidates": [
+    {
+      "content": {
+        "parts": [
+          {
+            "text": "The sky appears blue due to a phenomenon called Rayleigh scattering."
+          }
+        ],
+        "role": "model"
+      },
+      "logprobsResult": {
+        "topCandidates": [
+          {
+            "candidates": [
+              {
+                "token": "The",
+                "tokenId": 651,
+                "logProbability": -0.0214
+              },
+              {
+                "token": "A",
+                "tokenId": 235,
+                "logProbability": -4.7068
+              },
+              {
+                "token": "Due",
+                "tokenId": 8720,
+                "logProbability": -5.3999
+              },
+              {
+                "token": "Ray",
+                "tokenId": 11534,
+                "logProbability": -6.0931
+              },
+              {
+                "token": "It",
+                "tokenId": 1026,
+                "logProbability": -6.7862
+              }
+            ]
+          },
+          {
+            "candidates": [
+              {
+                "token": " sky",
+                "tokenId": 8839,
+                "logProbability": -0.0018
+              },
+              {
+                "token": " atmosphere",
+                "tokenId": 13137,
+                "logProbability": -7.1726
+              },
+              {
+                "token": " color",
+                "tokenId": 2647,
+                "logProbability": -7.8658
+              },
+              {
+                "token": " reason",
+                "tokenId": 3280,
+                "logProbability": -8.5589
+              },
+              {
+                "token": " blue",
+                "tokenId": 3535,
+                "logProbability": -9.2521
+              }
+            ]
+          },
+          {
+            "candidates": [
+              {
+                "token": " appears",
+                "tokenId": 8149,
+                "logProbability": -0.312
+              },
+              {
+                "token": " is",
+                "tokenId": 603,
+                "logProbability": -2.1685
+              },
+              {
+                "token": " looks",
+                "tokenId": 5765,
+                "logProbability": -2.8616
+              },
+              {
+                "token": " gets",
+                "tokenId": 4872,
+                "logProbability": -3.5547
+              },
+              {
+                "token": "'s",
+                "tokenId": 1200,
+                "logProbability": -4.2479
+              }
+            ]
+          },
+          {
+            "candidates": [
+              {
+                "token": " blue",
+                "tokenId": 3535,
+                "logProbability": -0.0052
+              },
+              {
+                "token": " to",
+                "tokenId": 577,
+                "logProbability": -5.89
+              },
+              {
+                "token": " a",
+                "tokenId": 476,
+                "logProbability": -7.12
+              },
+              {
+                "token": " red",
+                "tokenId": 3148,
+                "logProbability": -8.43
+              },
+              {
+                "token": " green",
+                "tokenId": 4092,
+                "logProbability": -9.21
+              }
+            ]
+          },
+          {
+            "candidates": [
+              {
+                "token": " due",
+                "tokenId": 3402,
+                "logProbability": -0.182
+              },
+              {
+                "token": " because",
+                "tokenId": 2912,
+                "logProbability": -2.6451
+              },
+              {
+                "token": " primarily",
+                "tokenId": 13514,
+                "logProbability": -3.3383
+              },
+              {
+                "token": ".",
+                "tokenId": 235,
+                "logProbability": -4.0314
+              },
+              {
+                "token": " as",
+                "tokenId": 685,
+                "logProbability": -4.7246
+              }
+            ]
+          },
+          {
+            "candidates": [
+              {
+                "token": " to",
+                "tokenId": 577,
+                "logProbability": -0.00024
+              },
+              {
+                "token": " in",
+                "tokenId": 575,
+                "logProbability": -9.1867
+              },
+              {
+                "token": " partly",
+                "tokenId": 24689,
+                "logProbability": -9.8799
+              },
+              {
+                "token": ",",
+                "tokenId": 235,
+                "logProbability": -10.573
+              },
+              {
+                "token": " largely",
+                "tokenId": 15578,
+                "logProbability": -11.2662
+              }
+            ]
+          },
+          {
+            "candidates": [
+              {
+                "token": " a",
+                "tokenId": 476,
+                "logProbability": -0.0089
+              },
+              {
+                "token": " the",
+                "tokenId": 573,
+                "logProbability": -5.5779
+              },
+              {
+                "token": " an",
+                "tokenId": 671,
+                "logProbability": -6.2711
+              },
+              {
+                "token": " Rayleigh",
+                "tokenId": 51842,
+                "logProbability": -6.9642
+              },
+              {
+                "token": " something",
+                "tokenId": 2803,
+                "logProbability": -7.6573
+              }
+            ]
+          },
+          {
+            "candidates": [
+              {
+                "token": " phenomenon",
+                "tokenId": 19733,
+                "logProbability": -0.0412
+              },
+              {
+                "token": " process",
+                "tokenId": 2121,
+                "logProbability": -3.42
+              },
+              {
+                "token": " principle",
+                "tokenId": 12854,
+                "logProbability": -5.21
+              },
+              {
+                "token": " type",
+                "tokenId": 1916,
+                "logProbability": -6.89
+              },
+              {
+                "token": " concept",
+                "tokenId": 7412,
+                "logProbability": -7.12
+              }
+            ]
+          },
+          {
+            "candidates": [
+              {
+                "token": " called",
+                "tokenId": 3151,
+                "logProbability": -0.124
+              },
+              {
+                "token": " known",
+                "tokenId": 3815,
+                "logProbability": -2.42
+              },
+              {
+                "token": " referred",
+                "tokenId": 13671,
+                "logProbability": -4.89
+              },
+              {
+                "token": " termed",
+                "tokenId": 33987,
+                "logProbability": -5.21
+              },
+              {
+                "token": " involving",
+                "tokenId": 14012,
+                "logProbability": -6.43
+              }
+            ]
+          },
+          {
+            "candidates": [
+              {
+                "token": " Rayleigh",
+                "tokenId": 51842,
+                "logProbability": -0.0031
+              },
+              {
+                "token": " ray",
+                "tokenId": 11534,
+                "logProbability": -6.12
+              },
+              {
+                "token": " light",
+                "tokenId": 3177,
+                "logProbability": -7.89
+              },
+              {
+                "token": " \"",
+                "tokenId": 1041,
+                "logProbability": -8.42
+              },
+              {
+                "token": " R",
+                "tokenId": 432,
+                "logProbability": -9.21
+              }
+            ]
+          },
+          {
+            "candidates": [
+              {
+                "token": " scattering",
+                "tokenId": 37806,
+                "logProbability": -0.00014
+              },
+              {
+                "token": " Scattering",
+                "tokenId": 51843,
+                "logProbability": -9.12
+              },
+              {
+                "token": "-scattering",
+                "tokenId": 98712,
+                "logProbability": -12.42
+              },
+              {
+                "token": " scat",
+                "tokenId": 42156,
+                "logProbability": -13.89
+              },
+              {
+                "token": " scatter",
+                "tokenId": 38412,
+                "logProbability": -14.21
+              }
+            ]
+          },
+          {
+            "candidates": [
+              {
+                "token": ".",
+                "tokenId": 235,
+                "logProbability": -0.0089
+              },
+              {
+                "token": ",",
+                "tokenId": 236,
+                "logProbability": -5.5779
+              },
+              {
+                "token": " —",
+                "tokenId": 2588,
+                "logProbability": -6.2711
+              },
+              {
+                "token": " -",
+                "tokenId": 728,
+                "logProbability": -6.9642
+              },
+              {
+                "token": " which",
+                "tokenId": 902,
+                "logProbability": -7.6573
+              }
+            ]
+          }
+        ],
+        "chosenCandidates": [
+          {
+            "token": "The",
+            "tokenId": 651,
+            "logProbability": -0.0214
+          },
+          {
+            "token": " sky",
+            "tokenId": 8839,
+            "logProbability": -0.0018
+          },
+          {
+            "token": " appears",
+            "tokenId": 8149,
+            "logProbability": -0.312
+          },
+          {
+            "token": " blue",
+            "tokenId": 3535,
+            "logProbability": -0.0052
+          },
+          {
+            "token": " due",
+            "tokenId": 3402,
+            "logProbability": -0.182
+          },
+          {
+            "token": " to",
+            "tokenId": 577,
+            "logProbability": -0.00024
+          },
+          {
+            "token": " a",
+            "tokenId": 476,
+            "logProbability": -0.0089
+          },
+          {
+            "token": " phenomenon",
+            "tokenId": 19733,
+            "logProbability": -0.0412
+          },
+          {
+            "token": " called",
+            "tokenId": 3151,
+            "logProbability": -0.124
+          },
+          {
+            "token": " Rayleigh",
+            "tokenId": 51842,
+            "logProbability": -0.0031
+          },
+          {
+            "token": " scattering",
+            "tokenId": 37806,
+            "logProbability": -0.00014
+          },
+          {
+            "token": ".",
+            "tokenId": 235,
+            "logProbability": -0.0089
+          }
+        ]
+      },
+      "finishReason": "STOP",
+      "avgLogprobs": -0.0594
+    }
+  ],
+  "usageMetadata": {
+    "promptTokenCount": 8,
+    "candidatesTokenCount": 12,
+    "totalTokenCount": 20
+  },
+  "modelVersion": "gemini-2.0-flash"
+}

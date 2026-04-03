@@ -1,0 +1,452 @@
+{
+  "model": "llama3.2:3b",
+  "created_at": "2025-04-03T12:00:00Z",
+  "response": "The capital of France is Paris.",
+  "done": true,
+  "done_reason": "stop",
+  "logprobs": [
+    {
+      "token": "The",
+      "logprob": -0.4821,
+      "bytes": [
+        84,
+        104,
+        101
+      ],
+      "top_logprobs": [
+        {
+          "token": "The",
+          "logprob": -0.4821,
+          "bytes": [
+            84,
+            104,
+            101
+          ]
+        },
+        {
+          "token": "Paris",
+          "logprob": -1.8127,
+          "bytes": [
+            80,
+            97,
+            114,
+            105,
+            115
+          ]
+        },
+        {
+          "token": "France",
+          "logprob": -2.5059,
+          "bytes": [
+            70,
+            114,
+            97,
+            110,
+            99,
+            101
+          ]
+        },
+        {
+          "token": "It",
+          "logprob": -3.199,
+          "bytes": [
+            73,
+            116
+          ]
+        },
+        {
+          "token": "A",
+          "logprob": -3.8922,
+          "bytes": [
+            65
+          ]
+        }
+      ]
+    },
+    {
+      "token": " capital",
+      "logprob": -0.0312,
+      "bytes": [
+        32,
+        99,
+        97,
+        112,
+        105,
+        116,
+        97,
+        108
+      ],
+      "top_logprobs": [
+        {
+          "token": " capital",
+          "logprob": -0.0312,
+          "bytes": [
+            32,
+            99,
+            97,
+            112,
+            105,
+            116,
+            97,
+            108
+          ]
+        },
+        {
+          "token": " answer",
+          "logprob": -4.3346,
+          "bytes": [
+            32,
+            97,
+            110,
+            115,
+            119,
+            101,
+            114
+          ]
+        },
+        {
+          "token": " city",
+          "logprob": -5.0278,
+          "bytes": [
+            32,
+            99,
+            105,
+            116,
+            121
+          ]
+        },
+        {
+          "token": " official",
+          "logprob": -5.7209,
+          "bytes": [
+            32,
+            111,
+            102,
+            102,
+            105,
+            99,
+            105,
+            97,
+            108
+          ]
+        },
+        {
+          "token": " current",
+          "logprob": -6.4141,
+          "bytes": [
+            32,
+            99,
+            117,
+            114,
+            114,
+            101,
+            110,
+            116
+          ]
+        }
+      ]
+    },
+    {
+      "token": " of",
+      "logprob": -0.00042,
+      "bytes": [
+        32,
+        111,
+        102
+      ],
+      "top_logprobs": [
+        {
+          "token": " of",
+          "logprob": -0.00042,
+          "bytes": [
+            32,
+            111,
+            102
+          ]
+        },
+        {
+          "token": " city",
+          "logprob": -8.6272,
+          "bytes": [
+            32,
+            99,
+            105,
+            116,
+            121
+          ]
+        },
+        {
+          "token": ",",
+          "logprob": -9.3204,
+          "bytes": [
+            44
+          ]
+        },
+        {
+          "token": " and",
+          "logprob": -10.0135,
+          "bytes": [
+            32,
+            97,
+            110,
+            100
+          ]
+        },
+        {
+          "token": "/",
+          "logprob": -10.7067,
+          "bytes": [
+            47
+          ]
+        }
+      ]
+    },
+    {
+      "token": " France",
+      "logprob": -0.00089,
+      "bytes": [
+        32,
+        70,
+        114,
+        97,
+        110,
+        99,
+        101
+      ],
+      "top_logprobs": [
+        {
+          "token": " France",
+          "logprob": -0.00089,
+          "bytes": [
+            32,
+            70,
+            114,
+            97,
+            110,
+            99,
+            101
+          ]
+        },
+        {
+          "token": " the",
+          "logprob": -7.214,
+          "bytes": [
+            32,
+            116,
+            104,
+            101
+          ]
+        },
+        {
+          "token": " fr",
+          "logprob": -9.8124,
+          "bytes": [
+            32,
+            102,
+            114
+          ]
+        },
+        {
+          "token": " Par",
+          "logprob": -10.123,
+          "bytes": [
+            32,
+            80,
+            97,
+            114
+          ]
+        },
+        {
+          "token": " F",
+          "logprob": -11.521,
+          "bytes": [
+            32,
+            70
+          ]
+        }
+      ]
+    },
+    {
+      "token": " is",
+      "logprob": -0.00021,
+      "bytes": [
+        32,
+        105,
+        115
+      ],
+      "top_logprobs": [
+        {
+          "token": " is",
+          "logprob": -0.00021,
+          "bytes": [
+            32,
+            105,
+            115
+          ]
+        },
+        {
+          "token": ",",
+          "logprob": -9.3203,
+          "bytes": [
+            44
+          ]
+        },
+        {
+          "token": " has",
+          "logprob": -10.0134,
+          "bytes": [
+            32,
+            104,
+            97,
+            115
+          ]
+        },
+        {
+          "token": "'s",
+          "logprob": -10.7066,
+          "bytes": [
+            39,
+            115
+          ]
+        },
+        {
+          "token": " was",
+          "logprob": -11.3997,
+          "bytes": [
+            32,
+            119,
+            97,
+            115
+          ]
+        }
+      ]
+    },
+    {
+      "token": " Paris",
+      "logprob": -0.00014,
+      "bytes": [
+        32,
+        80,
+        97,
+        114,
+        105,
+        115
+      ],
+      "top_logprobs": [
+        {
+          "token": " Paris",
+          "logprob": -0.00014,
+          "bytes": [
+            32,
+            80,
+            97,
+            114,
+            105,
+            115
+          ]
+        },
+        {
+          "token": " paris",
+          "logprob": -9.123,
+          "bytes": [
+            32,
+            112,
+            97,
+            114,
+            105,
+            115
+          ]
+        },
+        {
+          "token": " Par",
+          "logprob": -11.521,
+          "bytes": [
+            32,
+            80,
+            97,
+            114
+          ]
+        },
+        {
+          "token": " Lyon",
+          "logprob": -12.8124,
+          "bytes": [
+            32,
+            76,
+            121,
+            111,
+            110
+          ]
+        },
+        {
+          "token": " Marseille",
+          "logprob": -13.214,
+          "bytes": [
+            32,
+            77,
+            97,
+            114,
+            115,
+            101,
+            105,
+            108,
+            108,
+            101
+          ]
+        }
+      ]
+    },
+    {
+      "token": ".",
+      "logprob": -0.0142,
+      "bytes": [
+        46
+      ],
+      "top_logprobs": [
+        {
+          "token": ".",
+          "logprob": -0.0142,
+          "bytes": [
+            46
+          ]
+        },
+        {
+          "token": ",",
+          "logprob": -5.1134,
+          "bytes": [
+            44
+          ]
+        },
+        {
+          "token": " (",
+          "logprob": -5.8065,
+          "bytes": [
+            32,
+            40
+          ]
+        },
+        {
+          "token": "!",
+          "logprob": -6.4997,
+          "bytes": [
+            33
+          ]
+        },
+        {
+          "token": " -",
+          "logprob": -7.1928,
+          "bytes": [
+            32,
+            45
+          ]
+        }
+      ]
+    }
+  ],
+  "total_duration": 245891234,
+  "load_duration": 12345678,
+  "prompt_eval_count": 12,
+  "prompt_eval_duration": 89012345,
+  "eval_count": 7,
+  "eval_duration": 134523456
+}

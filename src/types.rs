@@ -31,12 +31,14 @@ pub struct LogprobSequence {
     pub is_normalized: Option<bool>,
 }
 
-/// The three supported input formats.
+/// Supported input formats.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum InputFormat {
     OpenAI,
     VllmFlat,
     JsonlStream,
+    Gemini,
+    Ollama,
 }
 
 impl std::fmt::Display for InputFormat {
@@ -45,6 +47,8 @@ impl std::fmt::Display for InputFormat {
             InputFormat::OpenAI => write!(f, "openai"),
             InputFormat::VllmFlat => write!(f, "vllm"),
             InputFormat::JsonlStream => write!(f, "jsonl"),
+            InputFormat::Gemini => write!(f, "gemini"),
+            InputFormat::Ollama => write!(f, "ollama"),
         }
     }
 }
@@ -53,10 +57,16 @@ impl std::str::FromStr for InputFormat {
     type Err = String;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
-            "openai" => Ok(InputFormat::OpenAI),
+            "openai" | "azure" | "deepseek" | "mistral" | "fireworks" | "grok" | "xai" => {
+                Ok(InputFormat::OpenAI)
+            }
             "vllm" | "together" => Ok(InputFormat::VllmFlat),
             "jsonl" | "stream" => Ok(InputFormat::JsonlStream),
-            _ => Err(format!("unknown format: {s} (expected openai, vllm, jsonl)")),
+            "gemini" | "google" | "vertex" => Ok(InputFormat::Gemini),
+            "ollama" => Ok(InputFormat::Ollama),
+            _ => Err(format!(
+                "unknown format: {s} (expected: openai, vllm, jsonl, gemini, ollama)"
+            )),
         }
     }
 }

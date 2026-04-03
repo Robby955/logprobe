@@ -51,7 +51,7 @@ Validation: 63 error(s) found
 
 ## The problem
 
-OpenAI returns top-5 logprobs for a position:
+LLM APIs return top-k logprobs for a position:
 
 ```
 token       logprob     probability
@@ -85,15 +85,27 @@ logprobe highlight <file>     Terminal visualization colored by confidence
 
 All commands read from stdin if no file is given. Add `--json` for machine-readable output.
 
-## Formats
+## Supported providers
 
-logprobe auto-detects three input formats:
+logprobe auto-detects the input format. Use `--format <name>` to override.
 
-- **OpenAI** — Chat Completions API response (`choices[0].logprobs.content`)
-- **vLLM/Together** — Completions API response (`choices[0].logprobs.tokens` + `token_logprobs`)
-- **JSONL** — One `{"token", "logprob"}` per line, or a JSON array of these objects
+| Provider | Format | Status |
+|----------|--------|--------|
+| **OpenAI** (GPT-4o, GPT-4.1, GPT-4.1-mini/nano) | `openai` | Full support (real API fixtures included) |
+| **Azure OpenAI** | `openai` | Same format as OpenAI |
+| **xAI / Grok** | `openai` | Same format as OpenAI |
+| **Mistral AI** | `openai` | Same format as OpenAI |
+| **DeepSeek** | `openai` | Same format as OpenAI (+ reasoning_content) |
+| **Fireworks AI** | `openai` | Same format as OpenAI |
+| **Google Gemini** | `gemini` | Native format (`logprobsResult`, `logProbability`) |
+| **Ollama** (Llama, Gemma, Qwen, etc.) | `ollama` | Native format (top-level `logprobs` array) |
+| **vLLM** (any model) | `vllm` | Flat token-array format |
+| **Together AI** | `vllm` | Same format as vLLM |
+| **HuggingFace TGI** | `openai` | OpenAI-compatible endpoint |
+| **Amazon Bedrock** | `openai` | OpenAI-compatible mode (custom models only) |
+| **JSONL / custom** | `jsonl` | One `{"token", "logprob"}` per line |
 
-Use `--format openai|vllm|jsonl` to override detection, or `--strict-format` to reject ambiguous inputs.
+**Not supported** (no logprobs API): Anthropic/Claude, Groq, Perplexity, GPT-5/o1/o3 reasoning models.
 
 ## Why strict BPB
 
@@ -127,7 +139,7 @@ for f in &findings {
 
 ## Demo
 
-The `demo/` directory contains real API responses from GPT-4o-mini, GPT-4.1-nano, and GPT-2 — including a deliberately corrupted file with raw logits. See [demo/README.md](demo/README.md) for the full breakdown.
+The `demo/` directory contains real API responses and sample fixtures across multiple providers. See [demo/README.md](demo/README.md) for the full breakdown.
 
 | Model | Task | Missing mass | Entropy bias | Perplexity |
 |-------|------|-------------|-------------|------------|

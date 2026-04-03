@@ -36,6 +36,8 @@ pub fn parse_string(
         InputFormat::OpenAI => parse_openai(trimmed),
         InputFormat::VllmFlat => parse_vllm(trimmed),
         InputFormat::JsonlStream => parse_jsonl(trimmed),
+        InputFormat::Gemini => parse_gemini(trimmed),
+        InputFormat::Ollama => parse_ollama(trimmed),
     }
 }
 
@@ -77,6 +79,26 @@ fn detect_format_json(val: &Value, strict: bool) -> Result<InputFormat> {
             .is_some()
     {
         return Ok(InputFormat::VllmFlat);
+    }
+
+    // Gemini: candidates[0].logprobsResult with topCandidates and/or chosenCandidates
+    if val
+        .pointer("/candidates/0/logprobsResult")
+        .and_then(|v| v.as_object())
+        .is_some()
+    {
+        return Ok(InputFormat::Gemini);
+    }
+
+    // Ollama: top-level "logprobs" array with token+logprob objects (not nested in choices)
+    if let Some(logprobs) = val.get("logprobs").and_then(|v| v.as_array())
+        && logprobs
+            .first()
+            .map(|v| v.get("token").is_some() && v.get("logprob").is_some())
+            .unwrap_or(false)
+        && val.get("choices").is_none()
+    {
+        return Ok(InputFormat::Ollama);
     }
 
     if strict {
@@ -286,6 +308,161 @@ fn parse_jsonl(input: &str) -> Result<LogprobSequence> {
     })
 }
 
+/// Parse Google Gemini format.
+///
+/// Gemini uses `candidates[0].logprobsResult` with `chosenCandidates` (chosen tokens)
+/// and `topCandidates` (top-k alternatives per position). Field names differ from OpenAI:
+/// `logProbability` instead of `logprob`, `tokenId` instead of `bytes`.
+fn parse_gemini(input: &str) -> Result<LogprobSequence> {
+    let val: Value = serde_json::from_str(input).context("invalid JSON")?;
+    let model = val
+        .get("modelVersion")
+        .or_else(|| val.get("model"))
+        .and_then(|m| m.as_str())
+        .map(String::from);
+
+    let logprobs_result = val
+        .pointer("/candidates/0/logprobsResult")
+        .context("missing candidates[0].logprobsResult")?;
+
+    let chosen = logprobs_result
+        .get("chosenCandidates")
+        .and_then(|v| v.as_array())
+        .context("missing chosenCandidates array")?;
+
+    let top_candidates = logprobs_result
+        .get("topCandidates")
+        .and_then(|v| v.as_array());
+
+    let mut tokens = Vec::with_capacity(chosen.len());
+    let mut total_logprob = 0.0;
+
+    for (i, entry) in chosen.iter().enumerate() {
+        let token = entry
+            .get("token")
+            .and_then(|v| v.as_str())
+            .context(format!("missing token at position {i}"))?
+            .to_string();
+        let logprob = entry
+            .get("logProbability")
+            .and_then(|v| v.as_f64())
+            .context(format!("missing logProbability at position {i}"))?;
+
+        // Gemini doesn't provide bytes — derive from token string
+        let bytes = Some(token.as_bytes().to_vec());
+
+        // Extract top-k from topCandidates[i].candidates
+        let top_logprobs = top_candidates.and_then(|tc| {
+            tc.get(i)
+                .and_then(|pos| pos.get("candidates"))
+                .and_then(|v| v.as_array())
+                .map(|arr| {
+                    let mut entries: Vec<TopKEntry> = arr
+                        .iter()
+                        .filter_map(|c| {
+                            let t = c.get("token")?.as_str()?.to_string();
+                            let lp = c.get("logProbability")?.as_f64()?;
+                            Some(TopKEntry {
+                                token: t,
+                                logprob: lp,
+                            })
+                        })
+                        .collect();
+                    entries.sort_by(|a, b| {
+                        b.logprob
+                            .partial_cmp(&a.logprob)
+                            .unwrap_or(std::cmp::Ordering::Equal)
+                    });
+                    entries
+                })
+        });
+
+        total_logprob += logprob;
+        tokens.push(TokenLogprob {
+            token,
+            logprob,
+            bytes,
+            top_logprobs,
+        });
+    }
+
+    Ok(LogprobSequence {
+        tokens,
+        model,
+        format_detected: InputFormat::Gemini.to_string(),
+        total_logprob,
+        is_normalized: None,
+    })
+}
+
+/// Parse Ollama native format.
+///
+/// Ollama's `/api/generate` and `/api/chat` return `logprobs` as a top-level array
+/// (not nested under `choices`). Token objects use the same field names as OpenAI:
+/// `token`, `logprob`, `bytes`, `top_logprobs`.
+fn parse_ollama(input: &str) -> Result<LogprobSequence> {
+    let val: Value = serde_json::from_str(input).context("invalid JSON")?;
+    let model = val.get("model").and_then(|m| m.as_str()).map(String::from);
+
+    let logprobs_arr = val
+        .get("logprobs")
+        .and_then(|v| v.as_array())
+        .context("missing top-level logprobs array")?;
+
+    let mut tokens = Vec::with_capacity(logprobs_arr.len());
+    let mut total_logprob = 0.0;
+
+    for (i, item) in logprobs_arr.iter().enumerate() {
+        let token = item
+            .get("token")
+            .and_then(|v| v.as_str())
+            .context(format!("missing token at position {i}"))?
+            .to_string();
+        let logprob = item
+            .get("logprob")
+            .and_then(|v| v.as_f64())
+            .context(format!("missing logprob at position {i}"))?;
+
+        let bytes = item.get("bytes").and_then(|v| v.as_array()).map(|arr| {
+            arr.iter()
+                .filter_map(|b| b.as_u64().map(|n| n as u8))
+                .collect()
+        });
+
+        let top_logprobs = item
+            .get("top_logprobs")
+            .and_then(|v| v.as_array())
+            .map(|arr| {
+                arr.iter()
+                    .filter_map(|entry| {
+                        let t = entry.get("token")?.as_str()?.to_string();
+                        let lp = entry.get("logprob")?.as_f64()?;
+                        Some(TopKEntry {
+                            token: t,
+                            logprob: lp,
+                        })
+                    })
+                    .collect()
+            });
+
+        total_logprob += logprob;
+        tokens.push(TokenLogprob {
+            token,
+            logprob,
+            bytes,
+            top_logprobs,
+        });
+    }
+
+    Ok(LogprobSequence {
+        tokens,
+        model,
+        format_detected: InputFormat::Ollama.to_string(),
+        total_logprob,
+        is_normalized: None,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -311,6 +488,59 @@ mod tests {
         let seq = parse_string(input, None, false).unwrap();
         assert_eq!(seq.format_detected, "jsonl");
         assert_eq!(seq.tokens.len(), 2);
+    }
+
+    #[test]
+    fn test_detect_gemini() {
+        let input = r#"{
+            "candidates": [{
+                "content": {"parts": [{"text": "Paris"}], "role": "model"},
+                "logprobsResult": {
+                    "topCandidates": [
+                        {"candidates": [
+                            {"token": "Paris", "tokenId": 1, "logProbability": -0.05},
+                            {"token": "The", "tokenId": 2, "logProbability": -3.12}
+                        ]}
+                    ],
+                    "chosenCandidates": [
+                        {"token": "Paris", "tokenId": 1, "logProbability": -0.05}
+                    ]
+                }
+            }]
+        }"#;
+        let seq = parse_string(input, None, false).unwrap();
+        assert_eq!(seq.format_detected, "gemini");
+        assert_eq!(seq.tokens.len(), 1);
+        assert_eq!(seq.tokens[0].token, "Paris");
+        assert!((seq.tokens[0].logprob - (-0.05)).abs() < 1e-6);
+        let top = seq.tokens[0].top_logprobs.as_ref().unwrap();
+        assert_eq!(top.len(), 2);
+        assert_eq!(top[0].token, "Paris"); // sorted descending
+    }
+
+    #[test]
+    fn test_detect_ollama() {
+        let input = r#"{
+            "model": "gemma3",
+            "response": "Hello",
+            "done": true,
+            "logprobs": [
+                {
+                    "token": "Hello",
+                    "logprob": -0.523,
+                    "bytes": [72, 101, 108, 108, 111],
+                    "top_logprobs": [
+                        {"token": "Hello", "logprob": -0.523, "bytes": [72, 101, 108, 108, 111]},
+                        {"token": "Hi", "logprob": -1.8, "bytes": [72, 105]}
+                    ]
+                }
+            ]
+        }"#;
+        let seq = parse_string(input, None, false).unwrap();
+        assert_eq!(seq.format_detected, "ollama");
+        assert_eq!(seq.tokens.len(), 1);
+        assert_eq!(seq.model.unwrap(), "gemma3");
+        assert_eq!(seq.tokens[0].bytes.as_ref().unwrap(), &vec![72, 101, 108, 108, 111]);
     }
 
     #[test]
