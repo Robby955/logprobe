@@ -108,9 +108,9 @@ fn validate_catches_positive_logprob() {
 #[test]
 fn diagnose_reports_missing_mass() {
     let seq = parse::parse_string(OPENAI_FIXTURE, None, false).unwrap();
-    let findings = diagnostics::diagnose(&seq);
-    let has_mass_check = findings.iter().any(|f| f.check == "missing_mass");
-    assert!(has_mass_check, "diagnose should report on missing mass");
+    let report = diagnostics::diagnose_report(&seq);
+    assert!(report.total_positions > 0, "should have positions with top_logprobs");
+    assert!(report.mean_missing_mass > 0.0, "should have non-zero missing mass");
 }
 
 #[test]
@@ -205,8 +205,8 @@ fn unnormalized_logits_detected() {
 #[test]
 fn all_zero_logprobs_flagged() {
     let seq = make_simple_seq(vec![0.0, 0.0, 0.0]);
-    let findings = diagnostics::diagnose(&seq);
-    let has_zero = findings.iter().any(|f| f.check == "all_zero_logprobs");
+    let report = diagnostics::diagnose_report(&seq);
+    let has_zero = report.suspicious_patterns.iter().any(|f| f.check == "all_zero_logprobs");
     assert!(has_zero, "should flag all-zero logprobs");
 }
 
@@ -214,8 +214,8 @@ fn all_zero_logprobs_flagged() {
 #[test]
 fn constant_logprobs_flagged() {
     let seq = make_simple_seq(vec![-1.5, -1.5, -1.5]);
-    let findings = diagnostics::diagnose(&seq);
-    let has_constant = findings.iter().any(|f| f.check == "constant_logprobs");
+    let report = diagnostics::diagnose_report(&seq);
+    let has_constant = report.suspicious_patterns.iter().any(|f| f.check == "constant_logprobs");
     assert!(has_constant, "should flag constant logprobs");
 }
 
@@ -325,7 +325,6 @@ fn validate_catches_unsorted_top_logprobs() {
         model: None,
         format_detected: "test".into(),
         total_logprob: -0.5,
-        is_normalized: None,
     };
 
     let findings = diagnostics::validate(&seq);
@@ -361,7 +360,6 @@ fn validate_catches_duplicate_top_tokens() {
         model: None,
         format_detected: "test".into(),
         total_logprob: -0.5,
-        is_normalized: None,
     };
 
     let findings = diagnostics::validate(&seq);
@@ -484,7 +482,6 @@ fn make_simple_seq(logprobs: Vec<f64>) -> LogprobSequence {
         model: None,
         format_detected: "test".into(),
         total_logprob: total,
-        is_normalized: None,
     }
 }
 
@@ -520,7 +517,6 @@ fn make_seq_with_topk(positions: Vec<Vec<(&str, f64)>>) -> LogprobSequence {
         model: None,
         format_detected: "test".into(),
         total_logprob: total,
-        is_normalized: None,
     }
 }
 
