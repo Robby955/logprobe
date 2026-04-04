@@ -119,7 +119,6 @@ logprobe diagnose my_logprobs.json
 | `gpt4o_mini_creative.json` | GPT-4o-mini | OpenAI | 150 | Creative writing, top-20, temp=0.7 |
 | `gpt4o_mini_code.json` | GPT-4o-mini | OpenAI | 56 | Code generation, top-5, temp=0 |
 | `gpt41_nano.json` | GPT-4.1-nano | OpenAI | 1 | Single-token factual answer |
-| `gpt4o_structured.json` | GPT-4o | OpenAI | 17 | Structured output (empty top_logprobs) |
 | `gpt2_openai.json` | GPT-2 | OpenAI | 9 | High missing mass (30%), 2 UNRELIABLE positions |
 | `gpt2_logits_openai.json` | GPT-2 | OpenAI | 9 | Raw logits — logprobe catches this |
 | `gpt2_vllm.json` | GPT-2 | vLLM | 9 | Same data in flat token-array format |
