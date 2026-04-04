@@ -91,21 +91,30 @@ logprobe auto-detects the input format. Use `--format <name>` to override.
 
 | Provider | Format | Status |
 |----------|--------|--------|
-| **OpenAI** (GPT-4o, GPT-4.1, GPT-4.1-mini/nano) | `openai` | Full support (real API fixtures included) |
+| **OpenAI** (GPT-4o, GPT-4.1, GPT-4.1-mini/nano) | `openai` | Tested with real API data (top-20 logprobs) |
+| **Together AI** (DeepSeek-V3.1, Qwen3-235B, Gemma-3n, LFM2-24B) | `openai` | Tested — OpenAI-compatible endpoint (top-20) |
+| **Groq** (Qwen3-32B only) | `openai` | Tested — returns top-3 to top-5 (see note below) |
 | **Azure OpenAI** | `openai` | Same format as OpenAI |
-| **xAI / Grok** | `openai` | Same format as OpenAI |
-| **Mistral AI** | `openai` | Same format as OpenAI |
-| **DeepSeek** | `openai` | Same format as OpenAI (+ reasoning_content) |
-| **Fireworks AI** | `openai` | Same format as OpenAI |
-| **Google Gemini** | `gemini` | Native format (`logprobsResult`, `logProbability`) |
+| **xAI / Grok** | `openai` | Same format as OpenAI (not tested) |
+| **Mistral AI** | `openai` | Same format as OpenAI (not tested) |
+| **DeepSeek** (non-reasoning only) | `openai` | Same format as OpenAI (not tested directly) |
+| **Fireworks AI** | `openai` | Same format as OpenAI (not tested) |
+| **Cohere** | `openai` | Expected to work (OpenAI-compatible, not tested) |
+| **Google Gemini** | `gemini` | Parser exists for native format, but see note below |
 | **Ollama** (Llama, Gemma, Qwen, etc.) | `ollama` | Native format (top-level `logprobs` array) |
 | **vLLM** (any model) | `vllm` | Flat token-array format |
-| **Together AI** | `vllm` | Same format as vLLM |
-| **HuggingFace TGI** | `openai` | OpenAI-compatible endpoint |
-| **Amazon Bedrock** | `openai` | OpenAI-compatible mode (custom models only) |
+| **HuggingFace TGI** | `openai` | OpenAI-compatible endpoint (not tested) |
+| **Amazon Bedrock** | `openai` | OpenAI-compatible mode (custom models only, not tested) |
+| **NVIDIA NIM** | `openai` | Expected to work (OpenAI-compatible, not tested) |
 | **JSONL / custom** | `jsonl` | One `{"token", "logprob"}` per line |
 
-**Not supported** (no logprobs API): Anthropic/Claude, Groq, Perplexity, GPT-5/o1/o3 reasoning models.
+**No logprobs API**: Anthropic/Claude, Perplexity.
+
+**Google Gemini**: logprobe can parse Gemini's native JSON format (`logprobsResult`, `logProbability`), but as of April 2026 Google has disabled logprob access on most models. AI Studio never supported logprobs; Vertex AI supported them for older models but disabled them on Gemini 3/3.1 (March 2026). We tested Gemini 2.0-flash and 2.5-flash — both returned "Logprobs is not enabled."
+
+**Groq**: Official docs list logprobs as "not yet supported," but Qwen3-32B empirically returns valid top-3 to top-5 logprobs as of April 2026. Other Groq models (Llama, etc.) do not return logprobs. This is undocumented and may be withdrawn.
+
+**No logprobs**: OpenAI reasoning models (o1, o3, o4-mini), DeepSeek reasoning mode (deepseek-reasoner).
 
 ## Why strict BPB
 
@@ -137,7 +146,30 @@ for f in &findings {
 }
 ```
 
-## Demo
+## Research: entropy analysis of hallucination
+
+The [`research/`](research/README.md) directory contains logprob analysis of GPT-4o-mini — 6 experiments, 18 data files, 4 models, 3 languages. Key observations:
+
+**Entropy spikes coincide with hallucination.** We asked GPT-4o-mini four questions ranging from trivial ("What is 2+2?") to impossible ("Who was the 23rd person to walk on the moon?" — only 12 people have). The model hallucinated "Charles Duke." The single most uncertain token in the entire 60-token response was "is" (entropy 0.33 bits, logprob -2.81) — right before the fabricated name. Every other token had near-zero entropy.
+
+```
+logprobe confidence -t -0.5 research/data/confidence_gradient.json
+
+Position 56: logprob=-2.8120 (p=0.060087)
+  Context: ... on the moon[ is] Charles Duke.
+```
+
+**Refusal has higher perplexity than fabrication.** When the model correctly refused to answer about a fictional person, its perplexity was 1.56 with 20 uncertain tokens. When it confidently fabricated a wrong year for a real rifle model, perplexity was 1.02.
+
+Other observations (N=1 per comparison — treat as illustrative, not conclusive):
+- **Temperature affects perplexity but not missing mass** — top-20 captures 99.98% even at temp=1.5
+- **Creative writing entropy is 4.6x code** at the same temperature
+- **Japanese BPB is 1.4x French** due to multi-byte UTF-8, not model uncertainty
+- **GPT-4.1-mini was the most confident** of the four models tested on one prompt
+
+All data files and logprobe commands to reproduce every number are in `research/`.
+
+## Demo fixtures
 
 The `demo/` directory contains real API responses and sample fixtures across multiple providers. See [demo/README.md](demo/README.md) for the full breakdown.
 
