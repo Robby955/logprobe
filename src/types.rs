@@ -127,6 +127,49 @@ pub struct SequenceSummary {
     pub mean_missing_mass: Option<f64>,
 }
 
+/// One side of a comparison report.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompareEntry {
+    pub label: String,
+    pub model: Option<String>,
+    pub token_count: usize,
+    pub perplexity: f64,
+    pub mean_logprob: f64,
+    pub mean_entropy_partial: f64,
+    pub mean_missing_mass: Option<f64>,
+    pub bpb: Option<f64>,
+}
+
+/// Side-by-side comparison of two logprob sequences.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CompareReport {
+    pub file_a: CompareEntry,
+    pub file_b: CompareEntry,
+    pub delta_perplexity: f64,
+    pub delta_mean_logprob: f64,
+    pub delta_entropy_partial: f64,
+    pub delta_missing_mass: Option<f64>,
+    pub delta_bpb: Option<f64>,
+}
+
+/// Result of processing a single file in a batch run.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BatchResult {
+    pub file: String,
+    pub model: Option<String>,
+    pub format: String,
+    pub tokens: usize,
+    pub perplexity: f64,
+    pub mean_logprob: f64,
+    pub missing_mass: Option<f64>,
+    pub entropy_bias: Option<f64>,
+    /// Normalization status: "pass", "warn", or "fail".
+    pub normalization: String,
+    pub bpb: Option<f64>,
+    /// Set if the file failed to parse — other fields will be defaults.
+    pub error: Option<String>,
+}
+
 /// A low-confidence token with context.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LowConfidenceToken {

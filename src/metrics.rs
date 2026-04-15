@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::math;
-use crate::types::{LogprobSequence, SequenceSummary, TokenEntropy};
+use crate::types::{CompareEntry, CompareReport, LogprobSequence, SequenceSummary, TokenEntropy};
 
 const MISSING_MASS_UNRELIABILITY_THRESHOLD: f64 = 0.5;
 
@@ -106,6 +106,80 @@ pub fn compute_bpb(seq: &LogprobSequence) -> BpbResult {
             reason: "BPB computation failed (zero total bytes?)".into(),
         },
     }
+}
+
+/// Compare two logprob sequences and produce a side-by-side report.
+pub fn compute_compare(
+    seq_a: &LogprobSequence,
+    seq_b: &LogprobSequence,
+    label_a: &str,
+    label_b: &str,
+) -> CompareReport {
+    let summary_a = compute_summary(seq_a);
+    let summary_b = compute_summary(seq_b);
+
+    let entropy_a = compute_entropy(seq_a);
+    let entropy_b = compute_entropy(seq_b);
+
+    let mean_entropy_a = mean_of(entropy_a.iter().map(|e| e.entropy_partial));
+    let mean_entropy_b = mean_of(entropy_b.iter().map(|e| e.entropy_partial));
+
+    let bpb_a = match compute_bpb(seq_a) {
+        BpbResult::Value { bpb } => Some(bpb),
+        BpbResult::Unavailable { .. } => None,
+    };
+    let bpb_b = match compute_bpb(seq_b) {
+        BpbResult::Value { bpb } => Some(bpb),
+        BpbResult::Unavailable { .. } => None,
+    };
+
+    let delta_missing_mass = match (summary_a.mean_missing_mass, summary_b.mean_missing_mass) {
+        (Some(a), Some(b)) => Some(b - a),
+        _ => None,
+    };
+
+    let delta_bpb = match (bpb_a, bpb_b) {
+        (Some(a), Some(b)) => Some(b - a),
+        _ => None,
+    };
+
+    CompareReport {
+        file_a: CompareEntry {
+            label: label_a.to_string(),
+            model: seq_a.model.clone(),
+            token_count: summary_a.token_count,
+            perplexity: summary_a.perplexity,
+            mean_logprob: summary_a.mean_logprob,
+            mean_entropy_partial: mean_entropy_a,
+            mean_missing_mass: summary_a.mean_missing_mass,
+            bpb: bpb_a,
+        },
+        file_b: CompareEntry {
+            label: label_b.to_string(),
+            model: seq_b.model.clone(),
+            token_count: summary_b.token_count,
+            perplexity: summary_b.perplexity,
+            mean_logprob: summary_b.mean_logprob,
+            mean_entropy_partial: mean_entropy_b,
+            mean_missing_mass: summary_b.mean_missing_mass,
+            bpb: bpb_b,
+        },
+        delta_perplexity: summary_b.perplexity - summary_a.perplexity,
+        delta_mean_logprob: summary_b.mean_logprob - summary_a.mean_logprob,
+        delta_entropy_partial: mean_entropy_b - mean_entropy_a,
+        delta_missing_mass,
+        delta_bpb,
+    }
+}
+
+fn mean_of(iter: impl Iterator<Item = f64>) -> f64 {
+    let mut sum = 0.0;
+    let mut count = 0usize;
+    for v in iter {
+        sum += v;
+        count += 1;
+    }
+    if count == 0 { 0.0 } else { sum / count as f64 }
 }
 
 fn compute_mean_missing_mass(seq: &LogprobSequence) -> Option<f64> {

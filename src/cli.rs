@@ -65,4 +65,18 @@ pub enum Command {
 
     /// Terminal visualization colored by confidence
     Highlight,
+
+    /// Compare two logprob files side-by-side
+    Compare {
+        /// Second input file to compare against
+        #[arg()]
+        other: String,
+    },
+
+    /// Process multiple files and output a summary table
+    Batch {
+        /// Directory or single .json file to process
+        #[arg()]
+        path: String,
+    },
 }

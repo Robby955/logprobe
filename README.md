@@ -72,7 +72,7 @@ From source (latest):
 cargo install --git https://github.com/Robby955/logprobe
 ```
 
-From crates.io (v0.1.0):
+From crates.io:
 ```
 cargo install logprobe
 ```
@@ -80,16 +80,45 @@ cargo install logprobe
 ## Commands
 
 ```
-logprobe diagnose <file>      Detect normalization errors, entropy bias, and invalid distributions
-logprobe validate <file>      Check logprob data integrity (finite, sorted, no duplicates, mass <= 1)
-logprobe summary <file>       Sequence statistics (mean logprob, perplexity, missing mass)
-logprobe entropy <file>       Per-token entropy from top_logprobs (partial and normalized)
-logprobe confidence <file>    Find low-confidence tokens with surrounding context
-logprobe bpb <file>           Bits-per-byte (strict: requires explicit byte counts)
-logprobe highlight <file>     Terminal visualization colored by confidence
+logprobe diagnose <file>              Detect normalization errors, entropy bias, and invalid distributions
+logprobe validate <file>              Check logprob data integrity (finite, sorted, no duplicates, mass <= 1)
+logprobe summary <file>               Sequence statistics (mean logprob, perplexity, missing mass)
+logprobe entropy <file>               Per-token entropy from top_logprobs (partial and normalized)
+logprobe confidence <file>            Find low-confidence tokens with surrounding context
+logprobe bpb <file>                   Bits-per-byte (strict: requires explicit byte counts)
+logprobe highlight <file>             Terminal visualization colored by confidence
+logprobe compare <file_a> <file_b>    Side-by-side comparison of two logprob files
+logprobe batch <dir_or_file>          Process multiple files and output a summary table
 ```
 
 All commands read from stdin if no file is given. Add `--json` for machine-readable output.
+
+### compare
+
+Compare two logprob files side-by-side. Shows perplexity, mean logprob, entropy, missing mass, and BPB deltas with colored output (green = improvement, red = regression).
+
+```
+$ logprobe compare response_a.json response_b.json
+
+                     response_a.json   response_b.json          delta
+Tokens                           150               150
+Perplexity                      1.95              1.02         -0.930
+Mean logprob                   -0.67             -0.02         +0.650
+Entropy (partial)               1.35              0.03         -1.315
+Missing mass                   0.012             0.001        -0.0107
+BPB                             0.49              0.01         -0.475
+```
+
+### batch
+
+Process a directory of `.json` files (or a single file) and output a CSV summary table with per-file metrics. Useful for comparing model outputs across many prompts.
+
+```
+$ logprobe batch responses/
+file,model,format,tokens,perplexity,mean_logprob,missing_mass,entropy_bias,normalization,bpb,error
+creative.json,gpt-4o-mini-2024-07-18,openai,150,1.95,-0.67,0.0115,0.0155,pass,0.49,
+factual.json,gpt-4o-mini-2024-07-18,openai,42,1.01,-0.01,0.0010,0.0003,pass,0.01,
+```
 
 ## Supported providers
 

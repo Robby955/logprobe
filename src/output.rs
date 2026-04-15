@@ -5,8 +5,8 @@ use std::io::{self, Write};
 
 use crate::metrics::BpbResult;
 use crate::types::{
-    DiagnoseReport, DiagnosticFinding, LogprobSequence, LowConfidenceToken, SequenceSummary,
-    Severity, TokenEntropy,
+    BatchResult, CompareReport, DiagnoseReport, DiagnosticFinding, LogprobSequence,
+    LowConfidenceToken, SequenceSummary, Severity, TokenEntropy,
 };
 
 pub fn print_summary(summary: &SequenceSummary, json: bool) -> Result<()> {
@@ -294,6 +294,223 @@ pub fn print_diagnose_report(report: &DiagnoseReport, json: bool) -> Result<()> 
     }
 
     Ok(())
+}
+
+pub fn print_compare(report: &CompareReport, json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(report)?);
+        return Ok(());
+    }
+
+    let no_color = std::env::var("NO_COLOR").is_ok();
+    let mut stdout = io::stdout();
+
+    // Header
+    let label_a = &report.file_a.label;
+    let label_b = &report.file_b.label;
+    let col_w = label_a.len().max(label_b.len()).max(14);
+
+    println!("=== Compare ===");
+    println!();
+    println!(
+        "{:<20} {:>col_w$}   {:>col_w$}   {:>12}",
+        "Metric", label_a, label_b, "Delta"
+    );
+    let rule_len = 20 + 3 + col_w + 3 + col_w + 3 + 12;
+    println!("{}", "\u{2500}".repeat(rule_len));
+
+    // Tokens (no delta — counts are independent)
+    println!(
+        "{:<20} {:>col_w$}   {:>col_w$}",
+        "Tokens",
+        report.file_a.token_count,
+        report.file_b.token_count,
+    );
+
+    // Model
+    let model_a = report.file_a.model.as_deref().unwrap_or("-");
+    let model_b = report.file_b.model.as_deref().unwrap_or("-");
+    println!(
+        "{:<20} {:>col_w$}   {:>col_w$}",
+        "Model", model_a, model_b,
+    );
+
+    // Perplexity (lower is better)
+    print_compare_row(
+        &mut stdout,
+        "Perplexity",
+        &format!("{:.4}", report.file_a.perplexity),
+        &format!("{:.4}", report.file_b.perplexity),
+        report.delta_perplexity,
+        4,
+        true,
+        col_w,
+        no_color,
+    )?;
+
+    // Mean logprob (higher/closer to 0 is better)
+    print_compare_row(
+        &mut stdout,
+        "Mean logprob",
+        &format!("{:.6}", report.file_a.mean_logprob),
+        &format!("{:.6}", report.file_b.mean_logprob),
+        report.delta_mean_logprob,
+        6,
+        false,
+        col_w,
+        no_color,
+    )?;
+
+    // Mean entropy (lower is better)
+    print_compare_row(
+        &mut stdout,
+        "Mean entropy",
+        &format!("{:.4}", report.file_a.mean_entropy_partial),
+        &format!("{:.4}", report.file_b.mean_entropy_partial),
+        report.delta_entropy_partial,
+        4,
+        true,
+        col_w,
+        no_color,
+    )?;
+
+    // Missing mass (lower is better, show as percentage)
+    if let (Some(mm_a), Some(mm_b), Some(delta)) = (
+        report.file_a.mean_missing_mass,
+        report.file_b.mean_missing_mass,
+        report.delta_missing_mass,
+    ) {
+        print_compare_row(
+            &mut stdout,
+            "Missing mass",
+            &format!("{:.2}%", mm_a * 100.0),
+            &format!("{:.2}%", mm_b * 100.0),
+            delta * 100.0,
+            2,
+            true,
+            col_w,
+            no_color,
+        )?;
+    }
+
+    // BPB (lower is better)
+    if let (Some(bpb_a), Some(bpb_b), Some(delta)) =
+        (report.file_a.bpb, report.file_b.bpb, report.delta_bpb)
+    {
+        print_compare_row(
+            &mut stdout,
+            "BPB",
+            &format!("{:.6}", bpb_a),
+            &format!("{:.6}", bpb_b),
+            delta,
+            6,
+            true,
+            col_w,
+            no_color,
+        )?;
+    }
+
+    println!();
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+fn print_compare_row(
+    stdout: &mut impl Write,
+    label: &str,
+    val_a: &str,
+    val_b: &str,
+    delta: f64,
+    precision: usize,
+    lower_is_better: bool,
+    col_w: usize,
+    no_color: bool,
+) -> Result<()> {
+    let sign = if delta > 0.0 { "+" } else { "" };
+    let delta_str = format!("{sign}{delta:.precision$}");
+
+    let improved = if lower_is_better {
+        delta < -1e-12
+    } else {
+        delta > 1e-12
+    };
+    let worsened = if lower_is_better {
+        delta > 1e-12
+    } else {
+        delta < -1e-12
+    };
+
+    // Print label + values
+    write!(
+        stdout,
+        "{:<20} {:>col_w$}   {:>col_w$}   ",
+        label, val_a, val_b,
+    )?;
+
+    // Print colored delta
+    if no_color {
+        writeln!(stdout, "{:>12}", delta_str)?;
+    } else if improved {
+        stdout.execute(SetForegroundColor(Color::Green))?;
+        write!(stdout, "{:>12}", delta_str)?;
+        stdout.execute(ResetColor)?;
+        writeln!(stdout)?;
+    } else if worsened {
+        stdout.execute(SetForegroundColor(Color::Red))?;
+        write!(stdout, "{:>12}", delta_str)?;
+        stdout.execute(ResetColor)?;
+        writeln!(stdout)?;
+    } else {
+        writeln!(stdout, "{:>12}", delta_str)?;
+    }
+
+    Ok(())
+}
+
+pub fn print_batch(results: &[BatchResult], json: bool) -> Result<()> {
+    if json {
+        println!("{}", serde_json::to_string_pretty(results)?);
+        return Ok(());
+    }
+
+    println!(
+        "file,model,format,tokens,perplexity,mean_logprob,missing_mass,entropy_bias,normalization,bpb"
+    );
+
+    for r in results {
+        let model = r.model.as_deref().unwrap_or("");
+        let missing_mass = format_optional_f64(r.missing_mass, 4);
+        let entropy_bias = r
+            .entropy_bias
+            .map(|v| format!("{v:+.4}"))
+            .unwrap_or_default();
+        let bpb = format_optional_f64(r.bpb, 3);
+
+        if let Some(ref err) = r.error {
+            // Escape commas in error messages
+            let escaped = err.replace('"', "\"\"");
+            println!(
+                "{},{},{},{},{:.4},{:.4},{},{},{},{},\"{}\"",
+                r.file, model, r.format, r.tokens, r.perplexity, r.mean_logprob,
+                missing_mass, entropy_bias, r.normalization, bpb, escaped,
+            );
+        } else {
+            println!(
+                "{},{},{},{},{:.4},{:.4},{},{},{},{}",
+                r.file, model, r.format, r.tokens, r.perplexity, r.mean_logprob,
+                missing_mass, entropy_bias, r.normalization, bpb,
+            );
+        }
+    }
+
+    Ok(())
+}
+
+fn format_optional_f64(value: Option<f64>, precision: usize) -> String {
+    match value {
+        Some(v) => format!("{v:.precision$}"),
+        None => String::new(),
+    }
 }
 
 /// Map a logprob to a terminal color: green (confident) -> yellow -> red (uncertain).
