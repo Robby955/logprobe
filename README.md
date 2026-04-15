@@ -67,6 +67,12 @@ The observed tokens account for 79.7% of the probability mass. The remaining 20.
 
 ## Install
 
+From source (latest):
+```
+cargo install --git https://github.com/Robby955/logprobe
+```
+
+From crates.io (v0.1.0):
 ```
 cargo install logprobe
 ```
@@ -91,30 +97,18 @@ logprobe auto-detects the input format. Use `--format <name>` to override.
 
 | Provider | Format | Status |
 |----------|--------|--------|
-| **OpenAI** (GPT-4o, GPT-4.1, GPT-4.1-mini/nano) | `openai` | Tested with real API data (top-20 logprobs) |
-| **Together AI** (DeepSeek-V3.1, Qwen3-235B, Gemma-3n, LFM2-24B) | `openai` | Tested — OpenAI-compatible endpoint (top-20) |
-| **Groq** (Qwen3-32B only) | `openai` | Tested — returns top-3 to top-5 (see note below) |
-| **Azure OpenAI** | `openai` | Same format as OpenAI |
-| **xAI / Grok** | `openai` | Same format as OpenAI (not tested) |
-| **Mistral AI** | `openai` | Same format as OpenAI (not tested) |
-| **DeepSeek** (non-reasoning only) | `openai` | Same format as OpenAI (not tested directly) |
-| **Fireworks AI** | `openai` | Same format as OpenAI (not tested) |
-| **Cohere** | `openai` | Expected to work (OpenAI-compatible, not tested) |
-| **Google Gemini** | `gemini` | Parser exists for native format, but see note below |
-| **Ollama** (Llama, Gemma, Qwen, etc.) | `ollama` | Native format (top-level `logprobs` array) |
-| **vLLM** (any model) | `vllm` | Flat token-array format |
-| **HuggingFace TGI** | `openai` | OpenAI-compatible endpoint (not tested) |
-| **Amazon Bedrock** | `openai` | OpenAI-compatible mode (custom models only, not tested) |
-| **NVIDIA NIM** | `openai` | Expected to work (OpenAI-compatible, not tested) |
+| **OpenAI** (GPT-4o, GPT-4.1, GPT-4.1-mini/nano) | `openai` | Tested — fixtures in `demo/` |
+| **GPT-2** (local via HuggingFace) | `openai` | Tested — fixtures in `demo/` |
+| **Ollama** (Llama, Gemma, Qwen, etc.) | `ollama` | Tested — fixture in `demo/` |
+| **vLLM** (any model) | `vllm` | Tested — fixture in `demo/` |
+| **Google Gemini** | `gemini` | Parser exists (not tested — see note) |
 | **JSONL / custom** | `jsonl` | One `{"token", "logprob"}` per line |
 
-**No logprobs API**: Anthropic/Claude, Perplexity.
+Any OpenAI-compatible API (Together AI, Groq, Azure, xAI, Mistral, DeepSeek, Fireworks, HuggingFace TGI, Amazon Bedrock, NVIDIA NIM) should work with the `openai` format, but these have not been tested directly.
 
-**Google Gemini**: logprobe can parse Gemini's native JSON format (`logprobsResult`, `logProbability`), but as of April 2026 Google has disabled logprob access on most models. AI Studio never supported logprobs; Vertex AI supported them for older models but disabled them on Gemini 3/3.1 (March 2026). We tested Gemini 2.0-flash and 2.5-flash — both returned "Logprobs is not enabled."
+**No logprobs API**: Anthropic/Claude, Perplexity, OpenAI reasoning models (o1, o3, o4-mini).
 
-**Groq**: Official docs list logprobs as "not yet supported," but Qwen3-32B empirically returns valid top-3 to top-5 logprobs as of April 2026. Other Groq models (Llama, etc.) do not return logprobs. This is undocumented and may be withdrawn.
-
-**No logprobs**: OpenAI reasoning models (o1, o3, o4-mini), DeepSeek reasoning mode (deepseek-reasoner).
+**Google Gemini**: logprobe can parse Gemini's native JSON format (`logprobsResult`, `logProbability`), but Google has restricted logprob access on recent models. A sample fixture is included in `demo/` but was not generated from a live API call.
 
 ## Why strict BPB
 

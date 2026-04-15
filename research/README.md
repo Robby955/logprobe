@@ -121,7 +121,7 @@ Entropy across all 20 tokens:
 
 The model is *completely certain* about what the gun is. It recognizes "Remington Model 7615 pump-action centerfire rifle" with zero entropy. But the moment it has to produce the year, entropy spikes to 0.65-0.67 bits. **The hallucinated digits are precisely where entropy is highest.**
 
-In both hallucination examples, per-token entropy is highest at the exact position where the model transitions from grounded to fabricated content. This is consistent with the semantic entropy literature \citep{farquhar2024detecting} but should be validated on larger datasets before drawing general conclusions.
+In both hallucination examples, per-token entropy is highest at the exact position where the model transitions from grounded to fabricated content. This is consistent with the semantic entropy literature (Farquhar et al., 2024, "Detecting hallucinations in large language models using semantic entropy") but should be validated on larger datasets before drawing general conclusions.
 
 ### Test 3: Fictional person biography
 
@@ -240,7 +240,7 @@ One -9999 token destroys the entire sequence's BPB (21.84 instead of ~0.2). This
 ## Reproduce everything
 
 ```bash
-cargo install logprobe
+cargo install --git https://github.com/Robby955/logprobe
 
 # Temperature sweep
 logprobe diagnose research/data/temp_1.5.json
