@@ -4,6 +4,10 @@ Most logprob analysis pipelines silently assume normalized, complete distributio
 
 logprobe detects these problems. It quantifies missing probability mass, catches unnormalized scores, and tells you exactly how much your entropy estimates are off.
 
+<p align="center">
+  <img src="docs/screenshot.svg" alt="logprobe terminal output" width="700">
+</p>
+
 ## Real results on production API data
 
 Tested on actual GPT-4o-mini and GPT-4.1-nano responses (April 2025). Raw JSON responses are in `demo/`.
