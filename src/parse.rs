@@ -1,15 +1,47 @@
-use anyhow::{bail, Context, Result};
 use serde_json::Value;
 use std::io::{self, Read};
+use thiserror::Error;
 
 use crate::types::{InputFormat, LogprobSequence, TokenLogprob, TopKEntry};
 
+/// Errors returned while parsing logprob input.
+///
+/// This is a concrete error type so library consumers can match on the failure
+/// mode programmatically rather than depending on `anyhow`.
+#[derive(Debug, Error)]
+pub enum ParseError {
+    /// The input was empty or contained only whitespace.
+    #[error("empty input")]
+    EmptyInput,
+    /// The input format could not be determined from its structure.
+    #[error("could not detect input format: {0}")]
+    UnknownFormat(String),
+    /// The input was not valid JSON (or JSONL).
+    #[error("invalid JSON: {0}")]
+    InvalidJson(String),
+    /// A required field was absent (the message names the JSON path or field).
+    #[error("missing field: {0}")]
+    MissingField(String),
+    /// The input parsed as JSON but was structurally inconsistent
+    /// (for example, mismatched array lengths).
+    #[error("malformed input: {0}")]
+    Malformed(String),
+    /// Reading from the input reader failed.
+    #[error("I/O error: {0}")]
+    Io(#[from] io::Error),
+}
+
 /// Parse logprobs from a reader, auto-detecting format unless overridden.
+///
+/// # Errors
+///
+/// Returns [`ParseError`] if the reader cannot be read, the input is empty,
+/// the format cannot be detected, or the JSON is malformed.
 pub fn parse_input(
     reader: impl Read,
     format_override: Option<InputFormat>,
     strict: bool,
-) -> Result<LogprobSequence> {
+) -> Result<LogprobSequence, ParseError> {
     let mut buf = String::new();
     let mut reader = io::BufReader::new(reader);
     reader.read_to_string(&mut buf)?;
@@ -17,14 +49,19 @@ pub fn parse_input(
 }
 
 /// Parse logprobs from a string, auto-detecting format unless overridden.
+///
+/// # Errors
+///
+/// Returns [`ParseError`] if the input is empty, the format cannot be detected
+/// (or is ambiguous under `strict`), or the JSON is malformed.
 pub fn parse_string(
     input: &str,
     format_override: Option<InputFormat>,
     strict: bool,
-) -> Result<LogprobSequence> {
+) -> Result<LogprobSequence, ParseError> {
     let trimmed = input.trim();
     if trimmed.is_empty() {
-        bail!("empty input");
+        return Err(ParseError::EmptyInput);
     }
 
     let format = match format_override {
@@ -42,7 +79,7 @@ pub fn parse_string(
 }
 
 /// Detect the input format from content structure.
-fn detect_format(input: &str, strict: bool) -> Result<InputFormat> {
+fn detect_format(input: &str, strict: bool) -> Result<InputFormat, ParseError> {
     // Try parsing as JSON first
     if let Ok(val) = serde_json::from_str::<Value>(input) {
         return detect_format_json(&val, strict);
@@ -50,14 +87,20 @@ fn detect_format(input: &str, strict: bool) -> Result<InputFormat> {
 
     // Check if it looks like JSONL (multiple lines, each valid JSON)
     let lines: Vec<&str> = input.lines().filter(|l| !l.trim().is_empty()).collect();
-    if !lines.is_empty() && lines.iter().all(|l| serde_json::from_str::<Value>(l).is_ok()) {
+    if !lines.is_empty()
+        && lines
+            .iter()
+            .all(|l| serde_json::from_str::<Value>(l).is_ok())
+    {
         return Ok(InputFormat::JsonlStream);
     }
 
-    bail!("could not detect input format: not valid JSON or JSONL")
+    Err(ParseError::UnknownFormat(
+        "not valid JSON or JSONL".to_string(),
+    ))
 }
 
-fn detect_format_json(val: &Value, strict: bool) -> Result<InputFormat> {
+fn detect_format_json(val: &Value, strict: bool) -> Result<InputFormat, ParseError> {
     // OpenAI: choices[0].logprobs.content is an array of objects with "token" + "logprob"
     if let Some(content) = val
         .pointer("/choices/0/logprobs/content")
@@ -102,7 +145,10 @@ fn detect_format_json(val: &Value, strict: bool) -> Result<InputFormat> {
     }
 
     if strict {
-        bail!("--strict-format: could not unambiguously detect format from JSON structure")
+        return Err(ParseError::UnknownFormat(
+            "--strict-format: could not unambiguously detect format from JSON structure"
+                .to_string(),
+        ));
     }
 
     // Fallback: if it's an array of objects with token+logprob, treat as JSONL-style
@@ -115,18 +161,21 @@ fn detect_format_json(val: &Value, strict: bool) -> Result<InputFormat> {
         return Ok(InputFormat::JsonlStream);
     }
 
-    bail!("could not detect format from JSON structure")
+    Err(ParseError::UnknownFormat(
+        "JSON structure does not match any supported format".to_string(),
+    ))
 }
 
 /// Parse OpenAI Chat Completions format.
-fn parse_openai(input: &str) -> Result<LogprobSequence> {
-    let val: Value = serde_json::from_str(input).context("invalid JSON")?;
+fn parse_openai(input: &str) -> Result<LogprobSequence, ParseError> {
+    let val: Value =
+        serde_json::from_str(input).map_err(|e| ParseError::InvalidJson(e.to_string()))?;
     let model = val.get("model").and_then(|m| m.as_str()).map(String::from);
 
     let content = val
         .pointer("/choices/0/logprobs/content")
         .and_then(|v| v.as_array())
-        .context("missing choices[0].logprobs.content")?;
+        .ok_or_else(|| ParseError::MissingField("choices[0].logprobs.content".to_string()))?;
 
     let mut tokens = Vec::with_capacity(content.len());
     let mut total_logprob = 0.0;
@@ -135,12 +184,12 @@ fn parse_openai(input: &str) -> Result<LogprobSequence> {
         let token = item
             .get("token")
             .and_then(|v| v.as_str())
-            .context("missing token field")?
+            .ok_or_else(|| ParseError::MissingField("token".to_string()))?
             .to_string();
         let logprob = item
             .get("logprob")
             .and_then(|v| v.as_f64())
-            .context("missing logprob field")?;
+            .ok_or_else(|| ParseError::MissingField("logprob".to_string()))?;
 
         let bytes = item.get("bytes").and_then(|v| v.as_array()).map(|arr| {
             arr.iter()
@@ -182,30 +231,31 @@ fn parse_openai(input: &str) -> Result<LogprobSequence> {
 }
 
 /// Parse vLLM / Together flat format.
-fn parse_vllm(input: &str) -> Result<LogprobSequence> {
-    let val: Value = serde_json::from_str(input).context("invalid JSON")?;
+fn parse_vllm(input: &str) -> Result<LogprobSequence, ParseError> {
+    let val: Value =
+        serde_json::from_str(input).map_err(|e| ParseError::InvalidJson(e.to_string()))?;
     let model = val.get("model").and_then(|m| m.as_str()).map(String::from);
 
     let logprobs_obj = val
         .pointer("/choices/0/logprobs")
-        .context("missing choices[0].logprobs")?;
+        .ok_or_else(|| ParseError::MissingField("choices[0].logprobs".to_string()))?;
 
     let token_strs = logprobs_obj
         .get("tokens")
         .and_then(|v| v.as_array())
-        .context("missing tokens array")?;
+        .ok_or_else(|| ParseError::MissingField("tokens".to_string()))?;
 
     let token_lps = logprobs_obj
         .get("token_logprobs")
         .and_then(|v| v.as_array())
-        .context("missing token_logprobs array")?;
+        .ok_or_else(|| ParseError::MissingField("token_logprobs".to_string()))?;
 
-    let top_lps = logprobs_obj
-        .get("top_logprobs")
-        .and_then(|v| v.as_array());
+    let top_lps = logprobs_obj.get("top_logprobs").and_then(|v| v.as_array());
 
     if token_strs.len() != token_lps.len() {
-        bail!("tokens and token_logprobs arrays have different lengths");
+        return Err(ParseError::Malformed(
+            "tokens and token_logprobs arrays have different lengths".to_string(),
+        ));
     }
 
     let mut tokens = Vec::with_capacity(token_strs.len());
@@ -214,27 +264,29 @@ fn parse_vllm(input: &str) -> Result<LogprobSequence> {
     for (i, (ts, tl)) in token_strs.iter().zip(token_lps.iter()).enumerate() {
         let token = ts
             .as_str()
-            .with_context(|| format!("token at index {i} is not a string"))?
+            .ok_or_else(|| ParseError::Malformed(format!("token at index {i} is not a string")))?
             .to_string();
-        let logprob = tl
-            .as_f64()
-            .with_context(|| format!("logprob at index {i} is not a number"))?;
+        let logprob = tl.as_f64().ok_or_else(|| {
+            ParseError::Malformed(format!("logprob at index {i} is not a number"))
+        })?;
 
         let top_logprobs = top_lps.and_then(|arr| {
-            arr.get(i)
-                .and_then(|v| v.as_object())
-                .map(|obj| {
-                    let mut entries: Vec<TopKEntry> = obj
-                        .iter()
-                        .map(|(k, v)| TopKEntry {
-                            token: k.clone(),
-                            logprob: v.as_f64().unwrap_or(f64::NEG_INFINITY),
-                        })
-                        .collect();
-                    // JSON objects have arbitrary key order — sort descending
-                    entries.sort_by(|a, b| b.logprob.partial_cmp(&a.logprob).unwrap_or(std::cmp::Ordering::Equal));
-                    entries
-                })
+            arr.get(i).and_then(|v| v.as_object()).map(|obj| {
+                let mut entries: Vec<TopKEntry> = obj
+                    .iter()
+                    .map(|(k, v)| TopKEntry {
+                        token: k.clone(),
+                        logprob: v.as_f64().unwrap_or(f64::NEG_INFINITY),
+                    })
+                    .collect();
+                // JSON objects have arbitrary key order — sort descending
+                entries.sort_by(|a, b| {
+                    b.logprob
+                        .partial_cmp(&a.logprob)
+                        .unwrap_or(std::cmp::Ordering::Equal)
+                });
+                entries
+            })
         });
 
         total_logprob += logprob;
@@ -255,32 +307,32 @@ fn parse_vllm(input: &str) -> Result<LogprobSequence> {
 }
 
 /// Parse JSONL stream format (one {token, logprob} per line).
-fn parse_jsonl(input: &str) -> Result<LogprobSequence> {
+fn parse_jsonl(input: &str) -> Result<LogprobSequence, ParseError> {
     let mut tokens = Vec::new();
     let mut total_logprob = 0.0;
 
     // Handle both actual JSONL and a JSON array
     let items: Vec<Value> = if input.trim_start().starts_with('[') {
-        serde_json::from_str(input).context("invalid JSON array")?
+        serde_json::from_str(input).map_err(|e| ParseError::InvalidJson(e.to_string()))?
     } else {
         input
             .lines()
             .filter(|l| !l.trim().is_empty())
             .map(serde_json::from_str)
             .collect::<Result<Vec<_>, _>>()
-            .context("invalid JSONL")?
+            .map_err(|e| ParseError::InvalidJson(e.to_string()))?
     };
 
     for item in &items {
         let token = item
             .get("token")
             .and_then(|v| v.as_str())
-            .context("missing token field in JSONL entry")?
+            .ok_or_else(|| ParseError::MissingField("token (JSONL entry)".to_string()))?
             .to_string();
         let logprob = item
             .get("logprob")
             .and_then(|v| v.as_f64())
-            .context("missing logprob field in JSONL entry")?;
+            .ok_or_else(|| ParseError::MissingField("logprob (JSONL entry)".to_string()))?;
 
         let bytes = item.get("bytes").and_then(|v| v.as_array()).map(|arr| {
             arr.iter()
@@ -310,8 +362,9 @@ fn parse_jsonl(input: &str) -> Result<LogprobSequence> {
 /// Gemini uses `candidates[0].logprobsResult` with `chosenCandidates` (chosen tokens)
 /// and `topCandidates` (top-k alternatives per position). Field names differ from OpenAI:
 /// `logProbability` instead of `logprob`, `tokenId` instead of `bytes`.
-fn parse_gemini(input: &str) -> Result<LogprobSequence> {
-    let val: Value = serde_json::from_str(input).context("invalid JSON")?;
+fn parse_gemini(input: &str) -> Result<LogprobSequence, ParseError> {
+    let val: Value =
+        serde_json::from_str(input).map_err(|e| ParseError::InvalidJson(e.to_string()))?;
     let model = val
         .get("modelVersion")
         .or_else(|| val.get("model"))
@@ -320,12 +373,12 @@ fn parse_gemini(input: &str) -> Result<LogprobSequence> {
 
     let logprobs_result = val
         .pointer("/candidates/0/logprobsResult")
-        .context("missing candidates[0].logprobsResult")?;
+        .ok_or_else(|| ParseError::MissingField("candidates[0].logprobsResult".to_string()))?;
 
     let chosen = logprobs_result
         .get("chosenCandidates")
         .and_then(|v| v.as_array())
-        .context("missing chosenCandidates array")?;
+        .ok_or_else(|| ParseError::MissingField("chosenCandidates".to_string()))?;
 
     let top_candidates = logprobs_result
         .get("topCandidates")
@@ -338,15 +391,18 @@ fn parse_gemini(input: &str) -> Result<LogprobSequence> {
         let token = entry
             .get("token")
             .and_then(|v| v.as_str())
-            .with_context(|| format!("missing token at position {i}"))?
+            .ok_or_else(|| ParseError::MissingField(format!("token at position {i}")))?
             .to_string();
         let logprob = entry
             .get("logProbability")
             .and_then(|v| v.as_f64())
-            .with_context(|| format!("missing logProbability at position {i}"))?;
+            .ok_or_else(|| ParseError::MissingField(format!("logProbability at position {i}")))?;
 
-        // Gemini doesn't provide bytes — derive from token string
-        let bytes = Some(token.as_bytes().to_vec());
+        // Gemini does not return per-token byte arrays. Deriving them from the
+        // token string (token.as_bytes()) is exactly the fallback that BPB
+        // refuses elsewhere, so leave bytes unset rather than fabricate them.
+        // This keeps the strict-BPB guarantee honest for Gemini input.
+        let bytes = None;
 
         // Extract top-k from topCandidates[i].candidates
         let top_logprobs = top_candidates.and_then(|tc| {
@@ -396,14 +452,15 @@ fn parse_gemini(input: &str) -> Result<LogprobSequence> {
 /// Ollama's `/api/generate` and `/api/chat` return `logprobs` as a top-level array
 /// (not nested under `choices`). Token objects use the same field names as OpenAI:
 /// `token`, `logprob`, `bytes`, `top_logprobs`.
-fn parse_ollama(input: &str) -> Result<LogprobSequence> {
-    let val: Value = serde_json::from_str(input).context("invalid JSON")?;
+fn parse_ollama(input: &str) -> Result<LogprobSequence, ParseError> {
+    let val: Value =
+        serde_json::from_str(input).map_err(|e| ParseError::InvalidJson(e.to_string()))?;
     let model = val.get("model").and_then(|m| m.as_str()).map(String::from);
 
     let logprobs_arr = val
         .get("logprobs")
         .and_then(|v| v.as_array())
-        .context("missing top-level logprobs array")?;
+        .ok_or_else(|| ParseError::MissingField("top-level logprobs array".to_string()))?;
 
     let mut tokens = Vec::with_capacity(logprobs_arr.len());
     let mut total_logprob = 0.0;
@@ -412,12 +469,12 @@ fn parse_ollama(input: &str) -> Result<LogprobSequence> {
         let token = item
             .get("token")
             .and_then(|v| v.as_str())
-            .with_context(|| format!("missing token at position {i}"))?
+            .ok_or_else(|| ParseError::MissingField(format!("token at position {i}")))?
             .to_string();
         let logprob = item
             .get("logprob")
             .and_then(|v| v.as_f64())
-            .with_context(|| format!("missing logprob at position {i}"))?;
+            .ok_or_else(|| ParseError::MissingField(format!("logprob at position {i}")))?;
 
         let bytes = item.get("bytes").and_then(|v| v.as_array()).map(|arr| {
             arr.iter()
@@ -535,7 +592,10 @@ mod tests {
         assert_eq!(seq.format_detected, "ollama");
         assert_eq!(seq.tokens.len(), 1);
         assert_eq!(seq.model.unwrap(), "gemma3");
-        assert_eq!(seq.tokens[0].bytes.as_ref().unwrap(), &vec![72, 101, 108, 108, 111]);
+        assert_eq!(
+            seq.tokens[0].bytes.as_ref().unwrap(),
+            &vec![72, 101, 108, 108, 111]
+        );
     }
 
     #[test]

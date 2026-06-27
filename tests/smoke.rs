@@ -3,9 +3,7 @@ use logprobe::filters;
 use logprobe::math;
 use logprobe::metrics;
 use logprobe::parse;
-use logprobe::types::{
-    LogprobSequence, Severity, TokenEntropy, TokenLogprob, TopKEntry,
-};
+use logprobe::types::{LogprobSequence, Severity, TokenEntropy, TokenLogprob, TopKEntry};
 
 const OPENAI_FIXTURE: &str = include_str!("fixtures/openai_sample.json");
 const VLLM_FIXTURE: &str = include_str!("fixtures/vllm_sample.json");
@@ -99,9 +97,7 @@ fn validate_catches_positive_logprob() {
 {"token":"ok","logprob":-0.3}"#;
     let seq = parse::parse_string(bad_json, None, false).unwrap();
     let findings = diagnostics::validate(&seq);
-    let has_positive_error = findings
-        .iter()
-        .any(|f| f.check == "nonpositive_logprob");
+    let has_positive_error = findings.iter().any(|f| f.check == "nonpositive_logprob");
     assert!(has_positive_error, "should catch positive logprob");
 }
 
@@ -109,8 +105,14 @@ fn validate_catches_positive_logprob() {
 fn diagnose_reports_missing_mass() {
     let seq = parse::parse_string(OPENAI_FIXTURE, None, false).unwrap();
     let report = diagnostics::diagnose_report(&seq);
-    assert!(report.total_positions > 0, "should have positions with top_logprobs");
-    assert!(report.mean_missing_mass > 0.0, "should have non-zero missing mass");
+    assert!(
+        report.total_positions > 0,
+        "should have positions with top_logprobs"
+    );
+    assert!(
+        report.mean_missing_mass > 0.0,
+        "should have non-zero missing mass"
+    );
 }
 
 #[test]
@@ -156,23 +158,23 @@ fn truncated_entropy_bias_is_bounded() {
     let observed_probs: [f64; 3] = [0.4, 0.3, 0.15];
 
     // True entropy
-    let true_entropy: f64 = full_probs
-        .iter()
-        .map(|&p| -p * p.log2())
-        .sum();
+    let true_entropy: f64 = full_probs.iter().map(|&p| -p * p.log2()).sum();
 
     let observed_lps: Vec<f64> = observed_probs.iter().map(|p| p.ln()).collect();
 
     let h_partial = math::entropy_bits_partial(&observed_lps);
     let h_normalized = math::entropy_bits_normalized(&observed_lps);
 
-    // Partial entropy is a lower bound on true entropy
+    // Partial entropy is an unconditional lower bound on the true entropy
+    // (each omitted -p*log2(p) term is non-negative).
     assert!(
         h_partial < true_entropy,
         "partial entropy ({h_partial:.4}) should be < true entropy ({true_entropy:.4})"
     );
-    // Normalized entropy overshoots for significantly truncated distributions
-    // (the renormalized distribution is more uniform than the full one)
+    // Renormalizing the observed slice always raises its entropy above the
+    // partial value (dividing by mass < 1 spreads probability). This says
+    // nothing about the normalized value's relation to the *true* entropy,
+    // whose bias sign is indeterminate.
     assert!(
         h_normalized > h_partial,
         "normalized ({h_normalized:.4}) should be > partial ({h_partial:.4})"
@@ -206,7 +208,10 @@ fn unnormalized_logits_detected() {
 fn all_zero_logprobs_flagged() {
     let seq = make_simple_seq(vec![0.0, 0.0, 0.0]);
     let report = diagnostics::diagnose_report(&seq);
-    let has_zero = report.suspicious_patterns.iter().any(|f| f.check == "all_zero_logprobs");
+    let has_zero = report
+        .suspicious_patterns
+        .iter()
+        .any(|f| f.check == "all_zero_logprobs");
     assert!(has_zero, "should flag all-zero logprobs");
 }
 
@@ -215,7 +220,10 @@ fn all_zero_logprobs_flagged() {
 fn constant_logprobs_flagged() {
     let seq = make_simple_seq(vec![-1.5, -1.5, -1.5]);
     let report = diagnostics::diagnose_report(&seq);
-    let has_constant = report.suspicious_patterns.iter().any(|f| f.check == "constant_logprobs");
+    let has_constant = report
+        .suspicious_patterns
+        .iter()
+        .any(|f| f.check == "constant_logprobs");
     assert!(has_constant, "should flag constant logprobs");
 }
 
@@ -250,10 +258,7 @@ fn missing_mass_high_flags_unreliable() {
         "missing mass should be >50%: {}",
         entropies[0].missing_mass
     );
-    assert!(
-        entropies[0].unreliable,
-        "should be flagged as unreliable"
-    );
+    assert!(entropies[0].unreliable, "should be flagged as unreliable");
 }
 
 /// Create a sequence with one high-entropy token among low-entropy ones
@@ -328,9 +333,7 @@ fn validate_catches_unsorted_top_logprobs() {
     };
 
     let findings = diagnostics::validate(&seq);
-    let has_sorted = findings
-        .iter()
-        .any(|f| f.check == "sorted_top_logprobs");
+    let has_sorted = findings.iter().any(|f| f.check == "sorted_top_logprobs");
     assert!(has_sorted, "should catch unsorted top_logprobs");
 }
 
@@ -363,9 +366,7 @@ fn validate_catches_duplicate_top_tokens() {
     };
 
     let findings = diagnostics::validate(&seq);
-    let has_dup = findings
-        .iter()
-        .any(|f| f.check == "duplicate_top_token");
+    let has_dup = findings.iter().any(|f| f.check == "duplicate_top_token");
     assert!(has_dup, "should catch duplicate tokens in top_logprobs");
 }
 
@@ -423,9 +424,19 @@ fn real_gpt4o_mini_creative() {
 
     let report = diagnostics::diagnose_report(&seq);
     assert_eq!(report.normalization_status, Severity::Ok);
-    assert!(report.mean_missing_mass > 0.0, "creative writing should have some missing mass");
-    let errors: Vec<_> = report.findings.iter().filter(|f| f.severity == Severity::Error).collect();
-    assert!(errors.is_empty(), "should have no validation errors: {errors:?}");
+    assert!(
+        report.mean_missing_mass > 0.0,
+        "creative writing should have some missing mass"
+    );
+    let errors: Vec<_> = report
+        .findings
+        .iter()
+        .filter(|f| f.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "should have no validation errors: {errors:?}"
+    );
 }
 
 /// Parse and diagnose a Gemini-format response.
@@ -440,8 +451,15 @@ fn gemini_format_parses() {
 
     let report = diagnostics::diagnose_report(&seq);
     assert_eq!(report.normalization_status, Severity::Ok);
-    let errors: Vec<_> = report.findings.iter().filter(|f| f.severity == Severity::Error).collect();
-    assert!(errors.is_empty(), "gemini should have no errors: {errors:?}");
+    let errors: Vec<_> = report
+        .findings
+        .iter()
+        .filter(|f| f.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "gemini should have no errors: {errors:?}"
+    );
 }
 
 /// Parse and diagnose an Ollama-format response.
@@ -457,8 +475,50 @@ fn ollama_format_parses() {
 
     let report = diagnostics::diagnose_report(&seq);
     assert_eq!(report.normalization_status, Severity::Ok);
-    let errors: Vec<_> = report.findings.iter().filter(|f| f.severity == Severity::Error).collect();
-    assert!(errors.is_empty(), "ollama should have no errors: {errors:?}");
+    let errors: Vec<_> = report
+        .findings
+        .iter()
+        .filter(|f| f.severity == Severity::Error)
+        .collect();
+    assert!(
+        errors.is_empty(),
+        "ollama should have no errors: {errors:?}"
+    );
+}
+
+/// Gemini provides no byte arrays, so BPB must refuse rather than fabricate
+/// byte counts from the token strings. This guards the strict-BPB promise.
+#[test]
+fn gemini_bpb_refuses() {
+    let input = include_str!("../demo/gemini_sample.json");
+    let seq = parse::parse_string(input, None, false).unwrap();
+    assert!(
+        seq.tokens.iter().all(|t| t.bytes.is_none()),
+        "Gemini tokens must not carry fabricated byte arrays"
+    );
+    match metrics::compute_bpb(&seq) {
+        metrics::BpbResult::Unavailable { .. } => {}
+        metrics::BpbResult::Value { bpb } => {
+            panic!("Gemini BPB should be unavailable, got {bpb}")
+        }
+    }
+}
+
+/// compute_compare should place seq_a/seq_b under file_a/file_b and report
+/// deltas as (b - a).
+#[test]
+fn compare_orders_files_and_deltas() {
+    let seq_a = parse::parse_string(OPENAI_FIXTURE, None, false).unwrap();
+    let seq_b = parse::parse_string(VLLM_FIXTURE, None, false).unwrap();
+
+    let report = metrics::compute_compare(&seq_a, &seq_b, "A", "B");
+    assert_eq!(report.file_a.label, "A");
+    assert_eq!(report.file_b.label, "B");
+    assert_eq!(report.file_a.token_count, seq_a.tokens.len());
+    assert_eq!(report.file_b.token_count, seq_b.tokens.len());
+
+    let expected_delta_ppl = report.file_b.perplexity - report.file_a.perplexity;
+    assert!((report.delta_perplexity - expected_delta_ppl).abs() < 1e-12);
 }
 
 // ─── Test helpers ────────────────────────────────────────────────
