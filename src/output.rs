@@ -1,6 +1,13 @@
-use anyhow::{bail, Result};
-use crossterm::style::{Color, Print, ResetColor, SetForegroundColor};
+//! Rendering of command results to a writer.
+//!
+//! Every function is generic over its output sink (`W: Write`) and returns
+//! [`io::Result`], so callers can target stdout, a buffer, or a file, and the
+//! renderers can be unit-tested without capturing process stdout. No
+//! application error type leaks out of this module.
+
 use crossterm::ExecutableCommand;
+use crossterm::style::{Color, Print, ResetColor, SetForegroundColor};
+use serde::Serialize;
 use std::io::{self, Write};
 
 use crate::metrics::BpbResult;
@@ -9,147 +16,177 @@ use crate::types::{
     LowConfidenceToken, SequenceSummary, Severity, TokenEntropy,
 };
 
-pub fn print_summary(summary: &SequenceSummary, json: bool) -> Result<()> {
+/// Serialize `value` to pretty JSON, mapping any serializer failure to an
+/// [`io::Error`] so callers only deal with one error type.
+fn json_pretty<T: Serialize>(value: &T) -> io::Result<String> {
+    serde_json::to_string_pretty(value).map_err(io::Error::other)
+}
+
+/// Quote and escape a CSV field if it contains a comma, quote, or newline.
+fn csv_field(s: &str) -> String {
+    if s.contains([',', '"', '\n', '\r']) {
+        format!("\"{}\"", s.replace('"', "\"\""))
+    } else {
+        s.to_string()
+    }
+}
+
+/// Render the sequence summary (mean logprob, perplexity, missing mass).
+pub fn print_summary(w: &mut impl Write, summary: &SequenceSummary, json: bool) -> io::Result<()> {
     if json {
-        println!("{}", serde_json::to_string_pretty(summary)?);
+        writeln!(w, "{}", json_pretty(summary)?)?;
         return Ok(());
     }
 
-    println!("=== Summary ===");
-    println!("Tokens:           {}", summary.token_count);
-    println!("Mean logprob:     {:.6}", summary.mean_logprob);
-    println!("Total logprob:    {:.6}", summary.total_logprob);
-    println!("Perplexity:       {:.4}", summary.perplexity);
-    println!(
+    writeln!(w, "=== Summary ===")?;
+    writeln!(w, "Tokens:           {}", summary.token_count)?;
+    writeln!(w, "Mean logprob:     {:.6}", summary.mean_logprob)?;
+    writeln!(w, "Total logprob:    {:.6}", summary.total_logprob)?;
+    writeln!(w, "Perplexity:       {:.4}", summary.perplexity)?;
+    writeln!(
+        w,
         "Normalized:       {}",
         if summary.assumed_normalized {
             "yes"
         } else {
             "unknown — run diagnose to check"
         }
-    );
+    )?;
     if let Some(mm) = summary.mean_missing_mass {
-        println!("Mean missing mass: {:.4}", mm);
+        writeln!(w, "Mean missing mass: {mm:.4}")?;
     }
     Ok(())
 }
 
-pub fn print_entropy(entropies: &[TokenEntropy], json: bool) -> Result<()> {
+/// Render the per-token entropy table.
+pub fn print_entropy(w: &mut impl Write, entropies: &[TokenEntropy], json: bool) -> io::Result<()> {
     if json {
-        println!("{}", serde_json::to_string_pretty(entropies)?);
+        writeln!(w, "{}", json_pretty(&entropies)?)?;
         return Ok(());
     }
 
-    println!(
+    writeln!(
+        w,
         "{:<6} {:<20} {:>10} {:>10} {:>10} Flag",
         "Pos", "Token", "H_partial", "H_norm", "Missing"
-    );
-    println!("{}", "-".repeat(72));
+    )?;
+    writeln!(w, "{}", "-".repeat(72))?;
 
     for e in entropies {
         let flag = if e.unreliable { "UNRELIABLE" } else { "" };
         let token_display = truncate_token(&e.token, 18);
-        println!(
+        writeln!(
+            w,
             "{:<6} {:<20} {:>10.4} {:>10.4} {:>10.4} {}",
-            e.position, token_display, e.entropy_partial, e.entropy_normalized, e.missing_mass,
+            e.position,
+            token_display,
+            e.entropy_partial,
+            e.entropy_normalized,
+            e.missing_mass,
             flag
-        );
+        )?;
     }
 
     Ok(())
 }
 
-pub fn print_confidence(tokens: &[LowConfidenceToken], threshold: f64, json: bool) -> Result<()> {
+/// Render low-confidence tokens with surrounding context.
+pub fn print_confidence(
+    w: &mut impl Write,
+    tokens: &[LowConfidenceToken],
+    threshold: f64,
+    json: bool,
+) -> io::Result<()> {
     if json {
-        println!("{}", serde_json::to_string_pretty(tokens)?);
+        writeln!(w, "{}", json_pretty(&tokens)?)?;
         return Ok(());
     }
 
     if tokens.is_empty() {
-        println!("No tokens below threshold {threshold}");
+        writeln!(w, "No tokens below threshold {threshold}")?;
         return Ok(());
     }
 
-    println!(
-        "=== Low-confidence tokens (threshold: {threshold}) ==="
-    );
-    println!();
+    writeln!(w, "=== Low-confidence tokens (threshold: {threshold}) ===")?;
+    writeln!(w)?;
 
     for tok in tokens {
         let ctx_before = tok.context_before.join("");
         let ctx_after = tok.context_after.join("");
-        println!(
+        writeln!(
+            w,
             "Position {}: logprob={:.4} (p={:.6})",
             tok.position, tok.logprob, tok.probability
-        );
-        println!(
+        )?;
+        writeln!(
+            w,
             "  Context: ...{}[{}]{}...",
             ctx_before, tok.token, ctx_after
-        );
-        println!();
+        )?;
+        writeln!(w)?;
     }
 
-    println!("Total: {} tokens below threshold", tokens.len());
+    writeln!(w, "Total: {} tokens below threshold", tokens.len())?;
     Ok(())
 }
 
-pub fn print_bpb(result: &BpbResult, json: bool) -> Result<()> {
+/// Render the bits-per-byte result, or the reason it is unavailable.
+///
+/// The CLI exits non-zero when BPB is unavailable in non-JSON mode; that
+/// decision is made by the caller, so this renderer only writes output.
+pub fn print_bpb(w: &mut impl Write, result: &BpbResult, json: bool) -> io::Result<()> {
+    if json {
+        writeln!(w, "{}", json_pretty(result)?)?;
+        return Ok(());
+    }
     match result {
-        BpbResult::Value { bpb } => {
-            if json {
-                println!("{}", serde_json::to_string_pretty(result)?);
-            } else {
-                println!("Bits per byte: {bpb:.6}");
-            }
-        }
-        BpbResult::Unavailable { reason } => {
-            if json {
-                println!("{}", serde_json::to_string_pretty(result)?);
-            } else {
-                bail!("{reason}");
-            }
-        }
+        BpbResult::Value { bpb } => writeln!(w, "Bits per byte: {bpb:.6}")?,
+        BpbResult::Unavailable { reason } => writeln!(w, "{reason}")?,
     }
     Ok(())
 }
 
-pub fn print_highlight(seq: &LogprobSequence) -> Result<()> {
+/// Render the sequence with each token colored by its log-probability.
+///
+/// Honors the `NO_COLOR` environment variable by falling back to plain text.
+pub fn print_highlight(w: &mut impl Write, seq: &LogprobSequence) -> io::Result<()> {
     let no_color = std::env::var("NO_COLOR").is_ok();
-    let mut stdout = io::stdout();
 
     if no_color {
-        // Plain text fallback: [logprob] token
+        // Plain text fallback: just the concatenated tokens.
         for tok in &seq.tokens {
-            print!("{}", tok.token);
+            write!(w, "{}", tok.token)?;
         }
-        println!();
+        writeln!(w)?;
     } else {
         for tok in &seq.tokens {
             let color = logprob_to_color(tok.logprob);
-            stdout.execute(SetForegroundColor(color))?;
-            stdout.execute(Print(&tok.token))?;
+            w.execute(SetForegroundColor(color))?;
+            w.execute(Print(&tok.token))?;
         }
-        stdout.execute(ResetColor)?;
-        println!();
-        println!();
-        print_legend(&mut stdout)?;
+        w.execute(ResetColor)?;
+        writeln!(w)?;
+        writeln!(w)?;
+        print_legend(w)?;
     }
 
     Ok(())
 }
 
+/// Render a flat list of diagnostic findings (`validate` output).
 pub fn print_diagnostics(
+    w: &mut impl Write,
     findings: &[DiagnosticFinding],
     command: &str,
     json: bool,
-) -> Result<()> {
+) -> io::Result<()> {
     if json {
-        println!("{}", serde_json::to_string_pretty(findings)?);
+        writeln!(w, "{}", json_pretty(&findings)?)?;
         return Ok(());
     }
 
-    println!("=== {command} ===");
-    println!();
+    writeln!(w, "=== {command} ===")?;
+    writeln!(w)?;
 
     let errors = findings
         .iter()
@@ -170,24 +207,29 @@ pub fn print_diagnostics(
             .position
             .map(|p| format!(" (position {p})"))
             .unwrap_or_default();
-        println!("{prefix} {}{pos}: {}", finding.check, finding.message);
+        writeln!(w, "{prefix} {}{pos}: {}", finding.check, finding.message)?;
     }
 
-    println!();
+    writeln!(w)?;
     if errors > 0 {
-        println!("Result: {errors} error(s), {warnings} warning(s)");
+        writeln!(w, "Result: {errors} error(s), {warnings} warning(s)")?;
     } else if warnings > 0 {
-        println!("Result: {warnings} warning(s), no errors");
+        writeln!(w, "Result: {warnings} warning(s), no errors")?;
     } else {
-        println!("Result: all checks passed");
+        writeln!(w, "Result: all checks passed")?;
     }
 
     Ok(())
 }
 
-pub fn print_diagnose_report(report: &DiagnoseReport, json: bool) -> Result<()> {
+/// Render the structured `diagnose` report.
+pub fn print_diagnose_report(
+    w: &mut impl Write,
+    report: &DiagnoseReport,
+    json: bool,
+) -> io::Result<()> {
     if json {
-        println!("{}", serde_json::to_string_pretty(report)?);
+        writeln!(w, "{}", json_pretty(report)?)?;
         return Ok(());
     }
 
@@ -195,58 +237,62 @@ pub fn print_diagnose_report(report: &DiagnoseReport, json: bool) -> Result<()> 
     if report.total_positions > 0 {
         match report.normalization_status {
             Severity::Error => {
-                println!(
+                writeln!(
+                    w,
                     "Normalization:  FAIL (log mass = {:.4} — likely raw logits)",
                     report.mean_log_mass
-                );
+                )?;
             }
             Severity::Warning => {
-                println!(
+                writeln!(
+                    w,
                     "Normalization:  WARN (log mass = {:.4} — possible normalization issue)",
                     report.mean_log_mass
-                );
+                )?;
             }
             Severity::Ok => {
-                println!(
+                writeln!(
+                    w,
                     "Normalization:  pass (log mass = {:.4})",
                     report.mean_log_mass
-                );
+                )?;
             }
         }
     } else {
-        println!("Normalization:  unknown (no top_logprobs data)");
+        writeln!(w, "Normalization:  unknown (no top_logprobs data)")?;
     }
 
     // Missing mass line
     if report.total_positions > 0 {
         if report.high_missing_mass_count > 0 {
-            println!(
+            writeln!(
+                w,
                 "Missing mass:   {:.4} ({}/{} positions >50% missing)",
-                report.mean_missing_mass,
-                report.high_missing_mass_count,
-                report.total_positions
-            );
+                report.mean_missing_mass, report.high_missing_mass_count, report.total_positions
+            )?;
         } else {
-            println!(
+            writeln!(
+                w,
                 "Missing mass:   {:.4} ({} positions)",
                 report.mean_missing_mass, report.total_positions
-            );
+            )?;
         }
     }
 
     // Entropy bias line — signed value is informative
     if report.total_positions > 0 {
-        println!(
+        writeln!(
+            w,
             "Entropy bias:   {:+.4} bits (partial: {:.4}, normalized: {:.4})",
             report.entropy_bias, report.entropy_partial, report.entropy_normalized
-        );
+        )?;
     }
 
     // BPB reliability
     if report.has_bytes {
-        println!("BPB:            byte data available");
+        writeln!(w, "BPB:            byte data available")?;
     } else {
-        println!("BPB:            no byte data (cannot compute)");
+        writeln!(w, "BPB:            no byte data (cannot compute)")?;
     }
 
     // Validation summary
@@ -261,83 +307,81 @@ pub fn print_diagnose_report(report: &DiagnoseReport, json: bool) -> Result<()> 
         .find(|f| f.check == "all_checks")
         .map(|f| f.message.clone());
 
-    println!();
+    writeln!(w)?;
     if error_count > 0 {
-        println!(
-            "Validation: {} error(s) found",
-            error_count
-        );
+        writeln!(w, "Validation: {error_count} error(s) found")?;
         for f in &report.findings {
             if f.severity == Severity::Error {
                 let pos = f
                     .position
                     .map(|p| format!(" (position {p})"))
                     .unwrap_or_default();
-                println!("  [ERROR] {}{pos}: {}", f.check, f.message);
+                writeln!(w, "  [ERROR] {}{pos}: {}", f.check, f.message)?;
             }
         }
     } else if let Some(msg) = token_count_msg {
-        println!("Validation: {msg}");
+        writeln!(w, "Validation: {msg}")?;
     }
 
     // Suspicious patterns
     if !report.suspicious_patterns.is_empty() {
-        println!();
+        writeln!(w)?;
         for pattern in &report.suspicious_patterns {
             let prefix = match pattern.severity {
                 Severity::Ok => "[OK]",
                 Severity::Warning => "[WARN]",
                 Severity::Error => "[ERROR]",
             };
-            println!("{prefix} {}: {}", pattern.check, pattern.message);
+            writeln!(w, "{prefix} {}: {}", pattern.check, pattern.message)?;
         }
     }
 
     Ok(())
 }
 
-pub fn print_compare(report: &CompareReport, json: bool) -> Result<()> {
+/// Render a side-by-side comparison of two sequences.
+pub fn print_compare(w: &mut impl Write, report: &CompareReport, json: bool) -> io::Result<()> {
     if json {
-        println!("{}", serde_json::to_string_pretty(report)?);
+        writeln!(w, "{}", json_pretty(report)?)?;
         return Ok(());
     }
 
     let no_color = std::env::var("NO_COLOR").is_ok();
-    let mut stdout = io::stdout();
 
     // Header
     let label_a = &report.file_a.label;
     let label_b = &report.file_b.label;
     let col_w = label_a.len().max(label_b.len()).max(14);
 
-    println!("=== Compare ===");
-    println!();
-    println!(
+    writeln!(w, "=== Compare ===")?;
+    writeln!(w)?;
+    writeln!(
+        w,
         "{:<20} {:>col_w$}   {:>col_w$}   {:>12}",
         "Metric", label_a, label_b, "Delta"
-    );
+    )?;
     let rule_len = 20 + 3 + col_w + 3 + col_w + 3 + 12;
-    println!("{}", "\u{2500}".repeat(rule_len));
+    writeln!(w, "{}", "\u{2500}".repeat(rule_len))?;
 
     // Tokens (no delta — counts are independent)
-    println!(
+    writeln!(
+        w,
         "{:<20} {:>col_w$}   {:>col_w$}",
-        "Tokens",
-        report.file_a.token_count,
-        report.file_b.token_count,
-    );
+        "Tokens", report.file_a.token_count, report.file_b.token_count,
+    )?;
 
     // Model
     let model_a = report.file_a.model.as_deref().unwrap_or("-");
     let model_b = report.file_b.model.as_deref().unwrap_or("-");
-    println!(
+    writeln!(
+        w,
         "{:<20} {:>col_w$}   {:>col_w$}",
         "Model", model_a, model_b,
-    );
+    )?;
 
     // Perplexity (lower is better)
     print_compare_row(
-        &mut stdout,
+        w,
         "Perplexity",
         &format!("{:.4}", report.file_a.perplexity),
         &format!("{:.4}", report.file_b.perplexity),
@@ -350,7 +394,7 @@ pub fn print_compare(report: &CompareReport, json: bool) -> Result<()> {
 
     // Mean logprob (higher/closer to 0 is better)
     print_compare_row(
-        &mut stdout,
+        w,
         "Mean logprob",
         &format!("{:.6}", report.file_a.mean_logprob),
         &format!("{:.6}", report.file_b.mean_logprob),
@@ -363,7 +407,7 @@ pub fn print_compare(report: &CompareReport, json: bool) -> Result<()> {
 
     // Mean entropy (lower is better)
     print_compare_row(
-        &mut stdout,
+        w,
         "Mean entropy",
         &format!("{:.4}", report.file_a.mean_entropy_partial),
         &format!("{:.4}", report.file_b.mean_entropy_partial),
@@ -381,7 +425,7 @@ pub fn print_compare(report: &CompareReport, json: bool) -> Result<()> {
         report.delta_missing_mass,
     ) {
         print_compare_row(
-            &mut stdout,
+            w,
             "Missing mass",
             &format!("{:.2}%", mm_a * 100.0),
             &format!("{:.2}%", mm_b * 100.0),
@@ -398,10 +442,10 @@ pub fn print_compare(report: &CompareReport, json: bool) -> Result<()> {
         (report.file_a.bpb, report.file_b.bpb, report.delta_bpb)
     {
         print_compare_row(
-            &mut stdout,
+            w,
             "BPB",
-            &format!("{:.6}", bpb_a),
-            &format!("{:.6}", bpb_b),
+            &format!("{bpb_a:.6}"),
+            &format!("{bpb_b:.6}"),
             delta,
             6,
             true,
@@ -410,13 +454,13 @@ pub fn print_compare(report: &CompareReport, json: bool) -> Result<()> {
         )?;
     }
 
-    println!();
+    writeln!(w)?;
     Ok(())
 }
 
 #[allow(clippy::too_many_arguments)]
 fn print_compare_row(
-    stdout: &mut impl Write,
+    w: &mut impl Write,
     label: &str,
     val_a: &str,
     val_b: &str,
@@ -425,7 +469,7 @@ fn print_compare_row(
     lower_is_better: bool,
     col_w: usize,
     no_color: bool,
-) -> Result<()> {
+) -> io::Result<()> {
     let sign = if delta > 0.0 { "+" } else { "" };
     let delta_str = format!("{sign}{delta:.precision$}");
 
@@ -441,41 +485,42 @@ fn print_compare_row(
     };
 
     // Print label + values
-    write!(
-        stdout,
-        "{:<20} {:>col_w$}   {:>col_w$}   ",
-        label, val_a, val_b,
-    )?;
+    write!(w, "{label:<20} {val_a:>col_w$}   {val_b:>col_w$}   ")?;
 
     // Print colored delta
     if no_color {
-        writeln!(stdout, "{:>12}", delta_str)?;
+        writeln!(w, "{delta_str:>12}")?;
     } else if improved {
-        stdout.execute(SetForegroundColor(Color::Green))?;
-        write!(stdout, "{:>12}", delta_str)?;
-        stdout.execute(ResetColor)?;
-        writeln!(stdout)?;
+        w.execute(SetForegroundColor(Color::Green))?;
+        write!(w, "{delta_str:>12}")?;
+        w.execute(ResetColor)?;
+        writeln!(w)?;
     } else if worsened {
-        stdout.execute(SetForegroundColor(Color::Red))?;
-        write!(stdout, "{:>12}", delta_str)?;
-        stdout.execute(ResetColor)?;
-        writeln!(stdout)?;
+        w.execute(SetForegroundColor(Color::Red))?;
+        write!(w, "{delta_str:>12}")?;
+        w.execute(ResetColor)?;
+        writeln!(w)?;
     } else {
-        writeln!(stdout, "{:>12}", delta_str)?;
+        writeln!(w, "{delta_str:>12}")?;
     }
 
     Ok(())
 }
 
-pub fn print_batch(results: &[BatchResult], json: bool) -> Result<()> {
+/// Render the batch results as CSV (or JSON).
+///
+/// All string fields are CSV-quoted, so commas in a filename, model id, or
+/// error message do not shift columns.
+pub fn print_batch(w: &mut impl Write, results: &[BatchResult], json: bool) -> io::Result<()> {
     if json {
-        println!("{}", serde_json::to_string_pretty(results)?);
+        writeln!(w, "{}", json_pretty(&results)?)?;
         return Ok(());
     }
 
-    println!(
-        "file,model,format,tokens,perplexity,mean_logprob,missing_mass,entropy_bias,normalization,bpb"
-    );
+    writeln!(
+        w,
+        "file,model,format,tokens,perplexity,mean_logprob,missing_mass,entropy_bias,normalization,bpb,error"
+    )?;
 
     for r in results {
         let model = r.model.as_deref().unwrap_or("");
@@ -485,22 +530,23 @@ pub fn print_batch(results: &[BatchResult], json: bool) -> Result<()> {
             .map(|v| format!("{v:+.4}"))
             .unwrap_or_default();
         let bpb = format_optional_f64(r.bpb, 3);
+        let error = r.error.as_deref().unwrap_or("");
 
-        if let Some(ref err) = r.error {
-            // Escape commas in error messages
-            let escaped = err.replace('"', "\"\"");
-            println!(
-                "{},{},{},{},{:.4},{:.4},{},{},{},{},\"{}\"",
-                r.file, model, r.format, r.tokens, r.perplexity, r.mean_logprob,
-                missing_mass, entropy_bias, r.normalization, bpb, escaped,
-            );
-        } else {
-            println!(
-                "{},{},{},{},{:.4},{:.4},{},{},{},{}",
-                r.file, model, r.format, r.tokens, r.perplexity, r.mean_logprob,
-                missing_mass, entropy_bias, r.normalization, bpb,
-            );
-        }
+        writeln!(
+            w,
+            "{},{},{},{},{:.4},{:.4},{},{},{},{},{}",
+            csv_field(&r.file),
+            csv_field(model),
+            csv_field(&r.format),
+            r.tokens,
+            r.perplexity,
+            r.mean_logprob,
+            missing_mass,
+            entropy_bias,
+            csv_field(&r.normalization),
+            bpb,
+            csv_field(error),
+        )?;
     }
 
     Ok(())
@@ -530,7 +576,7 @@ fn logprob_to_color(logprob: f64) -> Color {
     }
 }
 
-fn print_legend(stdout: &mut impl Write) -> Result<()> {
+fn print_legend(w: &mut impl Write) -> io::Result<()> {
     let labels = [
         (Color::Green, "> -0.1"),
         (Color::DarkGreen, "-0.1 to -0.5"),
@@ -539,16 +585,18 @@ fn print_legend(stdout: &mut impl Write) -> Result<()> {
         (Color::Red, "-2.0 to -5.0"),
         (Color::DarkRed, "< -5.0"),
     ];
-    print!("Legend: ");
+    write!(w, "Legend: ")?;
     for (color, label) in &labels {
-        stdout.execute(SetForegroundColor(*color))?;
-        stdout.execute(Print(format!("{label}  ")))?;
+        w.execute(SetForegroundColor(*color))?;
+        w.execute(Print(format!("{label}  ")))?;
     }
-    stdout.execute(ResetColor)?;
-    println!();
+    w.execute(ResetColor)?;
+    writeln!(w)?;
     Ok(())
 }
 
+/// Render a token for fixed-width display: control characters become glyphs and
+/// the string is truncated with an ellipsis if it exceeds `max_len` characters.
 fn truncate_token(token: &str, max_len: usize) -> String {
     let display: String = token
         .chars()
@@ -562,9 +610,86 @@ fn truncate_token(token: &str, max_len: usize) -> String {
         .collect();
     let char_count = display.chars().count();
     if char_count > max_len {
-        let truncated: String = display.chars().take(max_len - 3).collect();
+        // Guard against underflow if max_len < 3; fall back to a hard cut.
+        let keep = max_len.saturating_sub(3);
+        let truncated: String = display.chars().take(keep).collect();
         format!("{truncated}...")
     } else {
         display
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn render<F>(f: F) -> String
+    where
+        F: FnOnce(&mut Vec<u8>) -> io::Result<()>,
+    {
+        let mut buf = Vec::new();
+        f(&mut buf).expect("render should succeed");
+        String::from_utf8(buf).expect("output should be valid UTF-8")
+    }
+
+    #[test]
+    fn summary_plain_renders_fields() {
+        let summary = SequenceSummary {
+            token_count: 3,
+            mean_logprob: -0.5,
+            total_logprob: -1.5,
+            perplexity: 1.65,
+            assumed_normalized: false,
+            mean_missing_mass: Some(0.1),
+        };
+        let out = render(|w| print_summary(w, &summary, false));
+        assert!(out.contains("Tokens:           3"));
+        assert!(out.contains("Perplexity:       1.65"));
+        assert!(out.contains("Mean missing mass: 0.1000"));
+    }
+
+    #[test]
+    fn summary_json_is_parseable() {
+        let summary = SequenceSummary {
+            token_count: 1,
+            mean_logprob: -0.2,
+            total_logprob: -0.2,
+            perplexity: 1.22,
+            assumed_normalized: false,
+            mean_missing_mass: None,
+        };
+        let out = render(|w| print_summary(w, &summary, true));
+        let parsed: serde_json::Value = serde_json::from_str(&out).unwrap();
+        assert_eq!(parsed["token_count"], 1);
+    }
+
+    #[test]
+    fn batch_csv_quotes_fields_with_commas() {
+        let results = vec![BatchResult {
+            file: "a,b.json".to_string(),
+            model: Some("vendor,model-1".to_string()),
+            format: "openai".to_string(),
+            tokens: 2,
+            perplexity: 1.5,
+            mean_logprob: -0.4,
+            missing_mass: Some(0.01),
+            entropy_bias: Some(0.02),
+            normalization: "pass".to_string(),
+            bpb: Some(0.5),
+            error: None,
+        }];
+        let out = render(|w| print_batch(w, &results, false));
+        // Header plus one data row, both 11 columns.
+        assert!(out.contains("\"a,b.json\""));
+        assert!(out.contains("\"vendor,model-1\""));
+        let header = out.lines().next().unwrap();
+        assert_eq!(header.split(',').count(), 11);
+    }
+
+    #[test]
+    fn truncate_token_handles_small_max_len() {
+        // Must not panic even when max_len < 3.
+        let _ = truncate_token("abcdef", 2);
+        assert_eq!(truncate_token("abc", 10), "abc");
     }
 }

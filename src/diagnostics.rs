@@ -1,4 +1,5 @@
 use crate::math;
+use crate::metrics::MISSING_MASS_UNRELIABILITY_THRESHOLD;
 use crate::types::{DiagnoseReport, DiagnosticFinding, LogprobSequence, Severity};
 
 const LOG_MASS_ERROR_THRESHOLD: f64 = 2.0;
@@ -9,6 +10,7 @@ const MASS_EPSILON: f64 = 1e-6;
 const CONSTANT_EPSILON: f64 = 1e-6;
 
 /// Run integrity checks on a logprob sequence.
+#[must_use]
 pub fn validate(seq: &LogprobSequence) -> Vec<DiagnosticFinding> {
     let mut findings = Vec::new();
 
@@ -28,7 +30,10 @@ pub fn validate(seq: &LogprobSequence) -> Vec<DiagnosticFinding> {
             findings.push(DiagnosticFinding {
                 severity: Severity::Error,
                 check: "finite_logprob".into(),
-                message: format!("token {:?} has non-finite logprob: {}", tok.token, tok.logprob),
+                message: format!(
+                    "token {:?} has non-finite logprob: {}",
+                    tok.token, tok.logprob
+                ),
                 position: Some(i),
             });
         }
@@ -153,6 +158,7 @@ pub fn validate(seq: &LogprobSequence) -> Vec<DiagnosticFinding> {
 }
 
 /// Build a structured diagnose report for the sequence.
+#[must_use]
 pub fn diagnose_report(seq: &LogprobSequence) -> DiagnoseReport {
     let validation_findings = validate(seq);
     let has_bytes = seq.tokens.iter().any(|t| t.bytes.is_some());
@@ -198,10 +204,7 @@ pub fn diagnose_report(seq: &LogprobSequence) -> DiagnoseReport {
             .map(|(_, lps)| math::estimate_log_mass(lps))
             .collect();
         let mean = log_masses.iter().sum::<f64>() / log_masses.len() as f64;
-        let max = log_masses
-            .iter()
-            .cloned()
-            .fold(f64::NEG_INFINITY, f64::max);
+        let max = log_masses.iter().copied().fold(f64::NEG_INFINITY, f64::max);
         (mean, max)
     };
 
@@ -224,7 +227,10 @@ pub fn diagnose_report(seq: &LogprobSequence) -> DiagnoseReport {
             .map(|(_, lps)| math::missing_mass(lps))
             .collect();
         let mean = missing_masses.iter().sum::<f64>() / missing_masses.len() as f64;
-        let high_count = missing_masses.iter().filter(|&&m| m > 0.5).count();
+        let high_count = missing_masses
+            .iter()
+            .filter(|&&m| m > MISSING_MASS_UNRELIABILITY_THRESHOLD)
+            .count();
         (mean, high_count)
     };
 
@@ -314,8 +320,8 @@ pub fn diagnose_report(seq: &LogprobSequence) -> DiagnoseReport {
     }
 }
 
-/// Run normalization diagnostics — the killer feature.
-/// Returns flat findings list for backward compatibility.
+/// Run normalization diagnostics and return a flat findings list.
+#[must_use]
 pub fn diagnose(seq: &LogprobSequence) -> Vec<DiagnosticFinding> {
     let report = diagnose_report(seq);
     let mut findings = report.findings;
@@ -362,14 +368,13 @@ pub fn diagnose(seq: &LogprobSequence) -> Vec<DiagnosticFinding> {
                 position: None,
             });
         }
-        _ => {
+        Severity::Warning => {
             // Warning with no positions = no top_logprobs available
             findings.push(DiagnosticFinding {
                 severity: Severity::Warning,
                 check: "no_top_logprobs".into(),
-                message:
-                    "no top_logprobs available — normalization diagnostics require top-k data"
-                        .into(),
+                message: "no top_logprobs available — normalization diagnostics require top-k data"
+                    .into(),
                 position: None,
             });
         }

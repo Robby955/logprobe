@@ -14,11 +14,12 @@ use logprobe::types::{BatchResult, InputFormat, Severity};
 
 fn main() -> Result<()> {
     let cli = Cli::parse();
+    let mut out = io::stdout().lock();
 
     // Batch has its own input handling — process and return early.
     if let Command::Batch { ref path } = cli.command {
         let results = run_batch(path, &cli)?;
-        output::print_batch(&results, cli.json)?;
+        output::print_batch(&mut out, &results, cli.json)?;
         return Ok(());
     }
 
@@ -46,33 +47,37 @@ fn main() -> Result<()> {
     match cli.command {
         Command::Summary => {
             let summary = metrics::compute_summary(&seq);
-            output::print_summary(&summary, cli.json)?;
+            output::print_summary(&mut out, &summary, cli.json)?;
         }
         Command::Entropy => {
             let entropies = metrics::compute_entropy(&seq);
-            output::print_entropy(&entropies, cli.json)?;
+            output::print_entropy(&mut out, &entropies, cli.json)?;
         }
-        Command::Confidence {
-            threshold,
-            context,
-        } => {
+        Command::Confidence { threshold, context } => {
             let low = filters::find_low_confidence(&seq, threshold, context);
-            output::print_confidence(&low, threshold, cli.json)?;
+            output::print_confidence(&mut out, &low, threshold, cli.json)?;
         }
         Command::Bpb => {
             let result = metrics::compute_bpb(&seq);
-            output::print_bpb(&result, cli.json)?;
+            // In non-JSON mode an unavailable BPB is an error: exit non-zero
+            // with the reason on stderr rather than printing a value.
+            if !cli.json {
+                if let metrics::BpbResult::Unavailable { reason } = &result {
+                    anyhow::bail!("{reason}");
+                }
+            }
+            output::print_bpb(&mut out, &result, cli.json)?;
         }
         Command::Highlight => {
-            output::print_highlight(&seq)?;
+            output::print_highlight(&mut out, &seq)?;
         }
         Command::Validate => {
             let findings = diagnostics::validate(&seq);
-            output::print_diagnostics(&findings, "validate", cli.json)?;
+            output::print_diagnostics(&mut out, &findings, "validate", cli.json)?;
         }
         Command::Diagnose => {
             let report = diagnostics::diagnose_report(&seq);
-            output::print_diagnose_report(&report, cli.json)?;
+            output::print_diagnose_report(&mut out, &report, cli.json)?;
         }
         Command::Compare { ref other } => {
             let other_data = fs::read_to_string(other)
@@ -84,9 +89,8 @@ fn main() -> Result<()> {
             // second file the user typed), so it becomes file B in the comparison.
             let label_other = other.as_str();
             let label_input = cli.input.as_deref().unwrap_or("stdin");
-            let report =
-                metrics::compute_compare(&seq_b, &seq, label_other, label_input);
-            output::print_compare(&report, cli.json)?;
+            let report = metrics::compute_compare(&seq_b, &seq, label_other, label_input);
+            output::print_compare(&mut out, &report, cli.json)?;
         }
         Command::Batch { .. } => unreachable!("handled above"),
     }
@@ -207,9 +211,6 @@ fn process_one_file(file_path: &str, cli: &Cli) -> BatchResult {
 /// Run batch processing over all files matching the path.
 fn run_batch(path: &str, cli: &Cli) -> Result<Vec<BatchResult>> {
     let files = collect_json_files(path)?;
-    let results: Vec<BatchResult> = files
-        .iter()
-        .map(|f| process_one_file(f, cli))
-        .collect();
+    let results: Vec<BatchResult> = files.iter().map(|f| process_one_file(f, cli)).collect();
     Ok(results)
 }

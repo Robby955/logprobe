@@ -27,7 +27,7 @@ Validation: all validation checks passed (150 tokens)
 
 Even with top-20, 1.15% of probability mass is missing. The entropy bias is small but measurable.
 
-**GPT-2 with top-5** (the common case — most API calls default to top-5):
+**GPT-2 with top-5** (the common case, since most API calls default to top-5):
 
 ```
 $ logprobe diagnose demo/gpt2_openai.json
@@ -67,7 +67,7 @@ token       logprob     probability
                   total: 0.797
 ```
 
-The observed tokens account for 79.7% of the probability mass. The remaining 20.3% is spread across thousands of unseen tokens. Renormalized top-k entropy is a lower bound on the true entropy (assuming correct top-k extraction) — but most tools present it as the actual value. If the API returned raw logits instead of log-probabilities (it happens), every metric silently produces garbage.
+The observed tokens account for 79.7% of the probability mass. The remaining 20.3% is spread across thousands of unseen tokens. The *partial* top-k entropy (the sum of observed surprisals) is an unconditional lower bound on the true entropy, but most tools instead report the *renormalized* top-k entropy as if it were the true value. Renormalizing can push the estimate above or below the truth: its bias has indeterminate sign. And if the API returned raw logits instead of log-probabilities (it happens), every metric silently produces garbage.
 
 ## Install
 
@@ -130,22 +130,22 @@ logprobe auto-detects the input format. Use `--format <name>` to override.
 
 | Provider | Format | Status |
 |----------|--------|--------|
-| **OpenAI** (GPT-4o, GPT-4.1, GPT-4.1-mini/nano) | `openai` | Tested — fixtures in `demo/` |
-| **GPT-2** (local via HuggingFace) | `openai` | Tested — fixtures in `demo/` |
-| **Ollama** (Llama, Gemma, Qwen, etc.) | `ollama` | Tested — fixture in `demo/` |
-| **vLLM** (any model) | `vllm` | Tested — fixture in `demo/` |
-| **Google Gemini** | `gemini` | Parser exists (not tested — see note) |
+| **OpenAI** (GPT-4o, GPT-4.1, GPT-4.1-mini/nano) | `openai` | Tested (fixtures in `demo/`) |
+| **GPT-2** (local via HuggingFace) | `openai` | Tested (fixtures in `demo/`) |
+| **Ollama** (Llama, Gemma, Qwen, etc.) | `ollama` | Tested (fixture in `demo/`) |
+| **vLLM** (any model) | `vllm` | Tested (fixture in `demo/`) |
+| **Google Gemini** | `gemini` | Parser tested on a synthetic fixture (see note) |
 | **JSONL / custom** | `jsonl` | One `{"token", "logprob"}` per line |
 
 Any OpenAI-compatible API (Together AI, Groq, Azure, xAI, Mistral, DeepSeek, Fireworks, HuggingFace TGI, Amazon Bedrock, NVIDIA NIM) should work with the `openai` format, but these have not been tested directly.
 
 **No logprobs API**: Anthropic/Claude, Perplexity, OpenAI reasoning models (o1, o3, o4-mini).
 
-**Google Gemini**: logprobe can parse Gemini's native JSON format (`logprobsResult`, `logProbability`), but Google has restricted logprob access on recent models. A sample fixture is included in `demo/` but was not generated from a live API call.
+**Google Gemini**: logprobe can parse Gemini's native JSON format (`logprobsResult`, `logProbability`), but Google has restricted logprob access on recent models. A sample fixture is included in `demo/` but was not generated from a live API call. Gemini does not return per-token byte arrays, so `bpb` reports unavailable for Gemini input rather than guessing byte counts from the token strings.
 
 ## Why strict BPB
 
-Most tools compute bits-per-byte as `-total_logprob / (total_bytes * ln(2))` where `total_bytes = sum(token.as_bytes().len())`. This is wrong for BPE tokenizers — tokens like `" Hello"` have a leading space byte that inflates the count, and special tokens have no meaningful byte representation at all.
+Most tools compute bits-per-byte as `-total_logprob / (total_bytes * ln(2))` where `total_bytes = sum(token.as_bytes().len())`. This is wrong for BPE tokenizers: tokens like `" Hello"` have a leading space byte that inflates the count, and special tokens have no meaningful byte representation at all.
 
 logprobe refuses to compute BPB unless the API provides explicit byte arrays for each token. If your data doesn't include byte counts, logprobe tells you why instead of giving you a wrong number.
 
@@ -175,9 +175,9 @@ for f in &findings {
 
 ## Research: entropy analysis of hallucination
 
-The [`research/`](research/README.md) directory contains logprob analysis of GPT-4o-mini — 6 experiments, 18 data files, 4 models, 3 languages. Key observations:
+The [`research/`](research/README.md) directory contains logprob analysis of GPT-4o-mini across 6 experiments, 18 data files, 4 models, and 3 languages. Key observations:
 
-**Entropy spikes coincide with hallucination.** We asked GPT-4o-mini four questions ranging from trivial ("What is 2+2?") to impossible ("Who was the 23rd person to walk on the moon?" — only 12 people have). The model hallucinated "Charles Duke." The single most uncertain token in the entire 60-token response was "is" (entropy 0.33 bits, logprob -2.81) — right before the fabricated name. Every other token had near-zero entropy.
+**Entropy spikes coincide with hallucination.** We asked GPT-4o-mini four questions ranging from trivial ("What is 2+2?") to impossible ("Who was the 23rd person to walk on the moon?", though only 12 people have). The model hallucinated "Charles Duke." The single most uncertain token in the entire 60-token response was "is" (entropy 0.33 bits, logprob -2.81), right before the fabricated name. Every other token had near-zero entropy.
 
 ```
 logprobe confidence -t -0.5 research/data/confidence_gradient.json
@@ -188,8 +188,8 @@ Position 56: logprob=-2.8120 (p=0.060087)
 
 **Refusal has higher perplexity than fabrication.** When the model correctly refused to answer about a fictional person, its perplexity was 1.56 with 20 uncertain tokens. When it confidently fabricated a wrong year for a real rifle model, perplexity was 1.02.
 
-Other observations (N=1 per comparison — treat as illustrative, not conclusive):
-- **Temperature affects perplexity but not missing mass** — top-20 captures 99.98% even at temp=1.5
+Other observations (N=1 per comparison; treat as illustrative, not conclusive):
+- **Temperature affects perplexity but not missing mass** (top-20 captures 99.98% even at temp=1.5)
 - **Creative writing entropy is 4.6x code** at the same temperature
 - **Japanese BPB is 1.4x French** due to multi-byte UTF-8, not model uncertainty
 - **GPT-4.1-mini was the most confident** of the four models tested on one prompt
@@ -206,6 +206,10 @@ The `demo/` directory contains real API responses and sample fixtures across mul
 | GPT-4o-mini | Code (top-5, t=0) | ~0% | ~0 bits | 1.00 |
 | GPT-4o-mini | Factual (top-5, t=0) | 0.10% | ~0 bits | 1.01 |
 | GPT-2 | Scoring (top-5) | 30.0% | +0.374 bits | 5.39 |
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## License
 

@@ -3,9 +3,13 @@ use serde::{Deserialize, Serialize};
 use crate::math;
 use crate::types::{CompareEntry, CompareReport, LogprobSequence, SequenceSummary, TokenEntropy};
 
-const MISSING_MASS_UNRELIABILITY_THRESHOLD: f64 = 0.5;
+/// Per-position missing-mass fraction above which an entropy estimate is
+/// considered unreliable. Shared with the `diagnose` path so both report the
+/// same threshold.
+pub const MISSING_MASS_UNRELIABILITY_THRESHOLD: f64 = 0.5;
 
 /// Compute overall summary statistics for a logprob sequence.
+#[must_use]
 pub fn compute_summary(seq: &LogprobSequence) -> SequenceSummary {
     let logprobs: Vec<f64> = seq.tokens.iter().map(|t| t.logprob).collect();
 
@@ -22,6 +26,7 @@ pub fn compute_summary(seq: &LogprobSequence) -> SequenceSummary {
 }
 
 /// Compute per-token entropy metrics.
+#[must_use]
 pub fn compute_entropy(seq: &LogprobSequence) -> Vec<TokenEntropy> {
     seq.tokens
         .iter()
@@ -62,6 +67,7 @@ pub enum BpbResult {
 }
 
 /// Compute bits-per-byte, refusing if byte counts are unavailable.
+#[must_use]
 pub fn compute_bpb(seq: &LogprobSequence) -> BpbResult {
     let logprobs: Vec<f64> = seq.tokens.iter().map(|t| t.logprob).collect();
     let byte_counts: Vec<Option<usize>> = seq
@@ -109,6 +115,7 @@ pub fn compute_bpb(seq: &LogprobSequence) -> BpbResult {
 }
 
 /// Compare two logprob sequences and produce a side-by-side report.
+#[must_use]
 pub fn compute_compare(
     seq_a: &LogprobSequence,
     seq_b: &LogprobSequence,

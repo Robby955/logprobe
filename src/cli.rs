@@ -12,6 +12,8 @@ use clap::{Parser, Subcommand};
                   logprobe diagnose response.json\n  \
                   logprobe validate response.json --json\n  \
                   logprobe entropy response.json\n  \
+                  logprobe diagnose gemini_response.json --format gemini\n  \
+                  logprobe summary ollama_response.json --format ollama\n  \
                   cat response.json | logprobe summary"
 )]
 pub struct Cli {
@@ -22,7 +24,7 @@ pub struct Cli {
     #[arg(global = true)]
     pub input: Option<String>,
 
-    /// Override auto-detected format (openai, vllm, jsonl)
+    /// Override auto-detected format (openai, vllm, jsonl, gemini, ollama)
     #[arg(long, global = true)]
     pub format: Option<String>,
 

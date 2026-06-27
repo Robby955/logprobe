@@ -1,15 +1,20 @@
 [package]
 name = "logprobe"
-version = "0.3.0"
+version = "0.4.0"
 edition = "2024"
 rust-version = "1.85"
 description = "Detect normalization errors, entropy bias, and truncation artifacts in LLM logprob data"
 license = "MIT"
 repository = "https://github.com/Robby955/logprobe"
 homepage = "https://github.com/Robby955/logprobe"
+documentation = "https://docs.rs/logprobe"
 readme = "README.md"
 keywords = ["llm", "logprobs", "entropy", "perplexity", "diagnostics"]
 categories = ["command-line-utilities", "science"]
+# research/ is ~10 MB of analysis data and docs/ holds the README screenshot;
+# neither is needed to build or use the crate, so keep them out of the package.
+# demo/ stays in: the test suite include_str!s several fixtures from it.
+exclude = ["research/", "docs/"]
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
@@ -17,3 +22,4 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 anyhow = "1"
 crossterm = "0.28"
+thiserror = "2"
